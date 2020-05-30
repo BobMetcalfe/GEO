@@ -1,0 +1,19 @@
+name: GEO-environment
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - psutil
+  - toolz
+  - matplotlib
+  - dill
+  - pandas
+  - partd
+  - bokeh
+  - dask
+  - os
+  - sys
+  - math
+  - copy
+  
+
