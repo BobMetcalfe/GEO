@@ -1,4 +1,3 @@
-sys
 math
 copy
 matplotlib
