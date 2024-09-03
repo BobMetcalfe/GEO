@@ -29,16 +29,12 @@ md"""Rock is Granite"""
 md"""Fluid is Water"""
 
 # ╔═╡ ccfb42b1-3413-4da9-b7dc-37a469debc58
-const FluidDensity = WaterDensity = 997000.0 # [g/m3]
-
-# ╔═╡ b43ee176-fb99-4ef7-869f-3b365136520b
-const FluidSpecificHeat = WaterSpecificHeat = 4.186 # [J/gC]
-
-# ╔═╡ 05a70aba-ba54-4600-8fb9-aa6b2f70f89a
-const FluidThermalConductivity = WaterThermalConductivity = 0.6 # [W/mC]
-
-# ╔═╡ e22a4ae2-88be-437b-9c2b-498ec46d1429
-nothing
+begin
+	const FluidDensity = WaterDensity = 997000.0 # [g/m3]
+	const FluidSpecificHeat = WaterSpecificHeat = 4.186 # [J/gC]
+	const FluidThermalConductivity = WaterThermalConductivity = 0.6 # [W/mC]
+	nothing
+end
 
 # ╔═╡ c7bd11b4-4d73-459a-b659-7fd5a92ec231
 md"""## Drilling"""
@@ -170,9 +166,6 @@ end
 # ╟─93e87fed-0406-4968-a0d7-347a775a36b1
 # ╟─d80f8b23-db44-4495-a4f0-0c89f4d11d50
 # ╠═ccfb42b1-3413-4da9-b7dc-37a469debc58
-# ╠═b43ee176-fb99-4ef7-869f-3b365136520b
-# ╠═05a70aba-ba54-4600-8fb9-aa6b2f70f89a
-# ╠═e22a4ae2-88be-437b-9c2b-498ec46d1429
 # ╟─c7bd11b4-4d73-459a-b659-7fd5a92ec231
 # ╠═3d2fd592-1e16-404a-8058-e39b0d6d968d
 # ╟─0f44987d-83dc-4852-8b20-64dca75dce37
