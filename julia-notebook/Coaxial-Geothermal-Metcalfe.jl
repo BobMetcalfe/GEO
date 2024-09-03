@@ -36,6 +36,9 @@ begin
 	nothing
 end
 
+# ╔═╡ dc454949-abd2-4c1e-8741-df9622202a52
+a = 1
+
 # ╔═╡ c7bd11b4-4d73-459a-b659-7fd5a92ec231
 md"""## Drilling"""
 
@@ -166,6 +169,7 @@ end
 # ╟─93e87fed-0406-4968-a0d7-347a775a36b1
 # ╟─d80f8b23-db44-4495-a4f0-0c89f4d11d50
 # ╠═ccfb42b1-3413-4da9-b7dc-37a469debc58
+# ╠═dc454949-abd2-4c1e-8741-df9622202a52
 # ╟─c7bd11b4-4d73-459a-b659-7fd5a92ec231
 # ╠═3d2fd592-1e16-404a-8058-e39b0d6d968d
 # ╟─0f44987d-83dc-4852-8b20-64dca75dce37
