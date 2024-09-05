@@ -12,7 +12,7 @@ Bob.Metcalfe@UTexas.edu TexasGEO.org"""
 md"""## Earth"""
 
 # ╔═╡ 5bb01181-a51c-400a-b3b1-ffa272219541
-const earth = (EarthSurfaceTemperature = 15.0, EarthTemperatureGradient = 0.025) # [C], [C/m]
+const earth = (EarthSurfaceTemperature = 15.01, EarthTemperatureGradient = 0.025) # [C], [C/m] 
 
 # ╔═╡ 1569cfa5-95c8-4809-8661-050eb0b89e1c
 md"""Ambient temperature in Celsius at depth in meters"""
