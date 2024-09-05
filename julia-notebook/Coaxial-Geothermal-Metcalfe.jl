@@ -6,7 +6,7 @@ using InteractiveUtils
 
 # ╔═╡ 5c7e7f90-f543-4350-91a0-cee3fd2311a3
 md"""# Model of Coaxial Geothermal
-Bob.Metcalfe@UTexas.edu TexasGEO.org"""
+etherdad@gmail.com"""
 
 # ╔═╡ fbfcd4da-5b27-4c1e-9a13-d5be496374c8
 md"""## Earth"""
