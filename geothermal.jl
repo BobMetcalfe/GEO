@@ -39,11 +39,11 @@ sim_time = 120
 # Rock specific heat [J/(g °C)]
 cr = 0.790
 # Rock thermal conductivity [W/(m °C)]
-λr =  2.62
+λr = 2.62
 # Rock diffusion coefficient
 dr = λr/(ρr*cr)
 # Rock temperature as a function of depth [°C]
-ϕ0(d) = ϕs+1.0*d
+ϕ0(d) = ϕs+0.5*d
 
 # Pipes: polyethylene ####################################
 # Inner pipe inside radius [m]
@@ -101,20 +101,21 @@ Re = ρf*uf*Lf/μf
 # Geometry distances [m]
 xx = 1
 yy = 1
-zz = h2 + 1
+zz = h2+1
 
 # dx, dy, dz [m]
-dx = 0.0166
-dy = 0.0166
-dz = 0.2
+dx = 0.01
+dy = 0.01
+dz = 0.125
 rx = 0:dx:xx
 ry = 0:dy:yy
 rz = 0:dz:zz
 
-# dt using stability condition
+# dt using stability condition (check this)
 dtd = (1/(2*maximum([dr,dp,df]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
-dtc= minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)])
+dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)])
 dt = minimum([dtd,dtc]) # 0.00005
+dt = dt/100
 println("dt:$dt")
 
 # No. of time iterations
@@ -184,7 +185,7 @@ for k in 1:kk
     end
 end
 ϕ1 .= ϕ2
-vels = Array{Float64}(undef, 3, ii, jj, kk)
+vels = Array{Float64}(undef,3,ii,jj,kk)
 vels[1,:,:,:] = vx
 vels[2,:,:,:] = vy
 vels[3,:,:,:] = vz
