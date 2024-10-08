@@ -3,15 +3,14 @@ using .Threads
 using WriteVTK
 
 ################################################################################
-# Diffusion convection equation for temperature ϕ
+# Diffusion convection equation for temperature in a pipe-in-pipe geometry
 #
-# Equation: dϕ/dt =  d(D*dϕ/dx)/dx + d(D*dϕ/dy)/dy + d(D*dϕ/dz)/dz
-#                   -(vx*dϕ/dx + vy*dϕ/dy + vz*dϕ/dz)
-#                   + S
+# Equation: ρ c ∂ϕ/∂t =  ∂(λ dϕ/∂x)/∂x + ∂(λ ∂ϕ/∂y)/∂y + ∂(λ ∂ϕ/∂z)/∂z
+#                        -(ε vx ∂ϕ/∂x + ε vy ∂ϕ/∂y + ε vz ∂ϕ/∂z)
+#                        + S
+# Initial conditions:
 #
-# Boundary conditions
-# 
-# Initial conditions
+# Boundary conditions:
 #
 
 # Create experiment folder #####################################################
@@ -19,10 +18,17 @@ path = "results/"
 rm(path, recursive=true, force=true)
 mkpath(path)
 
+# Auxiliary functions  ##########################################################
+function save(path, name, var, rx, ry, rz, t)
+    vtk_grid("$path/$name-$t", rx, ry, rz; compress = false, append = false, ascii = false) do vtk
+        vtk[name] = var
+    end
+end
+
 # Physical parameters ##########################################################
 
 # Maximum simulation time [s]
-sim_time = 0.1
+sim_time = 5
 
 # Earth surface temperature [C]
 ϕs = 20
@@ -35,7 +41,7 @@ cr = 0.790
 # Rock density [g/m3]
 ρr = 2750000
 # Rock diffusion coefficient
-dr = λf / (ρr * cr)
+dr = λr/(ρr*cr)
 # Rock temperature as a function of depth [C]
 ϕ0(d) = ϕs+0.1*d
 
@@ -45,13 +51,15 @@ r1 = 0.1
 # Inner pipe thickness [m]
 t1 = 0.01
 # Inner pipe height [m]
-h1 = 0.85 * zz
+h1 = 8.5
 # Outer pipe inside radius [m]
-r2 = r1 * sqrt(2)
+r2 = r1*sqrt(2)
 # Outer pipe thickness [m]
 t2 = 0.01
 # Outer pipe height [m]
-h2 = 0.90 * zz
+h2 = 9
+# Porosity: ratio of liquid volume to the total volume
+ε = 1
 # Pipe specific heat [J/(g °C)]
 cp = 2.9
 # Pipe thermal conductivity [W/(m °C)]
@@ -59,7 +67,7 @@ cp = 2.9
 # Pipe density [g/m3]
 ρp = 961000 
 # Pipe diffusion coefficient
-dp = λp / (ρp * cp)
+dp = λp/(ρp*cp)
 
 # Fluid: water #########################################
 # Fluid specific heat capacity [J/(g °C)]
@@ -69,9 +77,12 @@ cf = 4.184
 # Fluid density [g/m3]
 ρf = 997000
 # Fluid diffusion coefficient
-dw = λf / (ρf * cf)
+df = λf/(ρf*cf)
 # Flow speed [m/s]
-uf = 0.1
+uf = 10 #0.1
+vx0 = uf
+vy0 = 0
+vz0 = 0
 # Characteristic linear dimension (diameter of the pipe) [m]
 Lf = 2r1
 # Fluid dynamic viscosity at 50 °C [Pa⋅s]
@@ -89,16 +100,20 @@ Re = ρf*uf*Lf/μf
 # Geometry distances [m]
 xx = 1
 yy = 1
-zz = 10
+zz = h2 + 1
 
-# dt, dx, dy, dz [m]
-dt = 0.00005
-dx = 0.02
-dy = 0.02
-dz = 0.02
+# dx, dy, dz [m]
+dx = 0.03
+dy = 0.03
+dz = 0.2
 rx = 0:dx:xx
 ry = 0:dy:yy
 rz = 0:dz:zz
+
+# dt using stability condition
+dtd = (1/(2*maximum([dr,dp,df]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
+dtc= minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)])
+dt = minimum([dtd,dtc]) # 0.00005
 
 # No. of time iterations
 tt = round(Int,sim_time/dt) 
@@ -131,10 +146,10 @@ for k in 1:kk
             xi = i*dx
             r = norm([xi,yj]-[xc,yc])
             if r < r1  # inside inner pipe
-                d[i,j,k] = dw
+                d[i,j,k] = df
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
-                vz[i,j,k] = -1
+                vz[i,j,k] = -uf
                 ϕ2[i,j,k] = ϕs
             elseif r < r1+t1  # inner pipe
                 d[i,j,k] = dp
@@ -142,13 +157,13 @@ for k in 1:kk
                 vy[i,j,k] = 0
                 vz[i,j,k] = 0
                 ϕ2[i,j,k] = ϕs
-            elseif r < r1+t1+r2  # inside outer pipe
-                d[i,j,k] = dw
+            elseif r < r2  # inside outer pipe
+                d[i,j,k] = df
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
-                vz[i,j,k] = 1
+                vz[i,j,k] = uf
                 ϕ2[i,j,k] = ϕs
-            elseif r < r1+t1+r2+t2  # outer pipe
+            elseif r < r2+t2  # outer pipe
                 d[i,j,k] = dp
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
@@ -166,6 +181,10 @@ for k in 1:kk
 end
 ϕ1 .= ϕ2
 
+save(path, "diff_coeff", d, rx, ry, rz, 0)
+vels = reshape([vx; vy; vz], (ii,jj,kk,3))
+save(path, "velocity", vels, rx, ry, rz, 0)
+
 # Solve eq. system
 function updateϕ_domain!(ϕ2, ϕ1, d, vx, vy, vz, dx, dy, dz, dt)
     @threads for k = 2:kk-1
@@ -177,9 +196,9 @@ function updateϕ_domain!(ϕ2, ϕ1, d, vx, vy, vz, dx, dy, dz, dt)
                         -(d[i,j,k]+d[i,j-1,k])/2*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy)/dy
                        +((d[i,j,k+1]+d[i,j,k])/2*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz
                         -(d[i,j,k]+d[i,j,k-1])/2*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)/dz)
-                conv = ( vx[i,j,k]*(ϕ1[i+1,j,k]-ϕ1[i-1,j,k])/2dx
-                        +vy[i,j,k]*(ϕ1[i,j+1,k]-ϕ1[i,j-1,k])/2dy
-                        +vz[i,j,k]*(ϕ1[i,j,k+1]-ϕ1[i,j,k-1])/2dz) # TODO: use upwind
+                conv = ( ε*vx[i,j,k]*(ϕ1[i+1,j,k]-ϕ1[i-1,j,k])/2dx
+                        +ε*vy[i,j,k]*(ϕ1[i,j+1,k]-ϕ1[i,j-1,k])/2dy
+                        +ε*vz[i,j,k]*(ϕ1[i,j,k+1]-ϕ1[i,j,k-1])/2dz) # TODO: use upwind
                 conv = 0
                 source = 0.0
                 ϕ2[i,j,k] = (diff-conv+source)*dt+ϕ1[i,j,k]
@@ -197,11 +216,6 @@ function updateϕ_boundaries!(ϕ, ii, jj, kk)
     ϕ[2:ii-1,2:jj-1,kk] .= ϕ0(kk)
 end
 
-function saveϕ(path, ϕ, rx, ry, rz, t)
-    vtk_grid("$path/ϕ_$t", rx, ry, rz; compress = false, append = false, ascii = false) do vtk
-        vtk["temperature"] = ϕ
-    end
-end
 
 for t = 0:2:tt
     # Update ϕ
@@ -214,7 +228,7 @@ for t = 0:2:tt
     
     # Save ϕ
     if t % 10 == 0
-        saveϕ(path, ϕ2, rx, ry, rz, t)
+        save(path, "temperature", ϕ2, rx, ry, rz, t)
     end
 end
 
