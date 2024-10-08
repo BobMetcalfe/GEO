@@ -19,7 +19,7 @@ rm(path, recursive=true, force=true)
 mkpath(path)
 
 # Auxiliary functions  ##########################################################
-function save(path, name, var, rx, ry, rz, t)
+function save(path,name,var,rx,ry,rz,t)
     vtk_grid("$path/$name-$t", rx, ry, rz; compress = false, append = false, ascii = false) do vtk
         vtk[name] = var
     end
@@ -53,7 +53,8 @@ t1 = 0.01
 # Inner pipe height [m]
 h1 = 8.5
 # Outer pipe inside radius [m]
-r2 = r1*sqrt(2)
+vol1 = π*r1^2*h1
+r2 = sqrt((vol1 + π*(r1+t1)^2*h1)/(h1*π)) # <= vol1 = vol2 = π*r2^2*h1-π*(r1+t1)^2*h1
 # Outer pipe thickness [m]
 t2 = 0.01
 # Outer pipe height [m]
@@ -79,14 +80,14 @@ cf = 4.184
 # Fluid diffusion coefficient
 df = λf/(ρf*cf)
 # Flow speed [m/s]
-uf = 10 #0.1
+uf = 1 #0.1
 vx0 = uf
 vy0 = 0
 vz0 = 0
 # Characteristic linear dimension (diameter of the pipe) [m]
 Lf = 2r1
-# Fluid dynamic viscosity at 50 °C [Pa⋅s]
-μf = 0.0005465
+# Fluid dynamic viscosity at 25 °C [Pa⋅s]
+μf = 0.00089 # 0.0005465 at 50 °C
 # Reynolds number
 Re = ρf*uf*Lf/μf
 
@@ -103,8 +104,8 @@ yy = 1
 zz = h2 + 1
 
 # dx, dy, dz [m]
-dx = 0.03
-dy = 0.03
+dx = 0.017
+dy = 0.017
 dz = 0.2
 rx = 0:dx:xx
 ry = 0:dy:yy
@@ -114,15 +115,18 @@ rz = 0:dz:zz
 dtd = (1/(2*maximum([dr,dp,df]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
 dtc= minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)])
 dt = minimum([dtd,dtc]) # 0.00005
+println("dt:$dt")
 
 # No. of time iterations
 tt = round(Int,sim_time/dt) 
+println("tt:$tt")
 
 # No. of spatial domain nodes
 ii = round(Int,xx/dx)
 jj = round(Int,yy/dy)
 kk = round(Int,zz/dz)
 nn = ii * jj * kk
+println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 
 # No. of height nodes
 hh1 = round(Int,h1/dz)
@@ -132,7 +136,7 @@ hh2 = round(Int,h2/dz)
 ϕ2 = ones(ii,jj,kk)
 ϕ1 = ones(ii,jj,kk)
 
-# # Set initial and boundary conditions. Define diffusion coefficient and velocities.
+# Initial and boundary conditions #############################################
 d = zeros(ii,jj,kk)
 vx = zeros(ii,jj,kk)
 vy = zeros(ii,jj,kk)
@@ -180,13 +184,17 @@ for k in 1:kk
     end
 end
 ϕ1 .= ϕ2
+vels = Array{Float64}(undef, 3, ii, jj, kk)
+vels[1,:,:,:] = vx
+vels[2,:,:,:] = vy
+vels[3,:,:,:] = vz
+save(path,"velocity",vels,rx,ry,rz,0)
+save(path,"diff_coeff",d,rx,ry,rz,0)
 
-save(path, "diff_coeff", d, rx, ry, rz, 0)
-vels = reshape([vx; vy; vz], (ii,jj,kk,3))
-save(path, "velocity", vels, rx, ry, rz, 0)
+# Simulation ##################################################################
 
 # Solve eq. system
-function updateϕ_domain!(ϕ2, ϕ1, d, vx, vy, vz, dx, dy, dz, dt)
+function updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
     @threads for k = 2:kk-1
         for j = 2:jj-1
             for i = 2:ii-1
@@ -207,7 +215,7 @@ function updateϕ_domain!(ϕ2, ϕ1, d, vx, vy, vz, dx, dy, dz, dt)
     end
 end
 
-function updateϕ_boundaries!(ϕ, ii, jj, kk)
+function updateϕ_boundaries!(ϕ,ii,jj,kk)
     ϕ[1,2:jj-1,2:kk-1] .= ϕ[2,2:jj-1,2:kk-1]
     ϕ[ii,2:jj-1,2:kk-1] .= ϕ[ii-1,2:jj-1,2:kk-1]
     ϕ[2:ii-1,1,2:kk-1] .= ϕ[2:ii-1,2,2:kk-1]
@@ -216,19 +224,21 @@ function updateϕ_boundaries!(ϕ, ii, jj, kk)
     ϕ[2:ii-1,2:jj-1,kk] .= ϕ0(kk)
 end
 
-
+# Run simulation
 for t = 0:2:tt
     # Update ϕ
-    updateϕ_domain!(ϕ2, ϕ1, d, vx, vy, vz, dx, dy, dz, dt)
-    updateϕ_boundaries!(ϕ2, ii, jj, kk)
+    updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
+    updateϕ_boundaries!(ϕ2,ii,jj,kk)
     
     # Update ϕ
-    updateϕ_domain!(ϕ1, ϕ2, d, vx, vy, vz, dx, dy, dz, dt)
-    updateϕ_boundaries!(ϕ1, ii, jj, kk)
+    updateϕ_domain!(ϕ1,ϕ2,d,vx,vy,vz,dx,dy,dz,dt)
+    updateϕ_boundaries!(ϕ1,ii,jj,kk)
     
     # Save ϕ
-    if t % 10 == 0
-        save(path, "temperature", ϕ2, rx, ry, rz, t)
+    if t % 100 == 0
+        println("Iteration:$t, time:$(t*dt), temp1:$(ϕ2[ii÷2,jj÷2,kk-1])")
+        save(path,"temperature",ϕ2,rx,ry,rz,t)
+        println()
     end
 end
 
