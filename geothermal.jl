@@ -5,9 +5,9 @@ using WriteVTK
 ################################################################################
 # Diffusion convection equation for temperature ϕ
 #
-# Equation: dϕ/dt =   - ( d(D*dϕ/dx)/dx + d(D*dϕ/dy)/dy + d(D*dϕ/dz)/dz )
-#                     + vx*dϕ/dx + vy*dϕ/dy + vz*dϕ/dz
-#                     + S
+# Equation: dϕ/dt =  d(D*dϕ/dx)/dx + d(D*dϕ/dy)/dy + d(D*dϕ/dz)/dz
+#                   -(vx*dϕ/dx + vy*dϕ/dy + vz*dϕ/dz)
+#                   + S
 #
 # Boundary conditions
 # 
@@ -23,12 +23,23 @@ mkpath(path)
 
 # Maximum simulation time [s]
 sim_time = 0.1
-# Initial temperature as a function of depth [C]
-ϕ0(k) = 1+0.01*k 
-# Geometry distances [m]
-xx = 1
-yy = 1
-zz = 10
+
+# Earth surface temperature [C]
+ϕs = 20
+
+# Rock: granite #########################################
+# Rock specific heat [J/(g °C)]
+cr = 0.790
+# Rock thermal conductivity [W/(m °C)]
+λr =  2.62
+# Rock density [g/m3]
+ρr = 2750000
+# Rock diffusion coefficient
+dr = λf / (ρr * cr)
+# Rock temperature as a function of depth [C]
+ϕ0(d) = ϕs+0.1*d
+
+# Pipes: polyethylene ####################################
 # Inner pipe inside radius [m]
 r1 = 0.1
 # Inner pipe thickness [m]
@@ -36,17 +47,49 @@ t1 = 0.01
 # Inner pipe height [m]
 h1 = 0.85 * zz
 # Outer pipe inside radius [m]
-r2 = 0.1
+r2 = r1 * sqrt(2)
 # Outer pipe thickness [m]
 t2 = 0.01
 # Outer pipe height [m]
 h2 = 0.90 * zz
-# Diffusion coefficients
-dw = 0.5 # water
-dp = 1   # pipe
-dr = 0.001 # rock
+# Pipe specific heat [J/(g °C)]
+cp = 2.9
+# Pipe thermal conductivity [W/(m °C)]
+λp = 0.54 
+# Pipe density [g/m3]
+ρp = 961000 
+# Pipe diffusion coefficient
+dp = λp / (ρp * cp)
+
+# Fluid: water #########################################
+# Fluid specific heat capacity [J/(g °C)]
+cf = 4.184 
+# Fluid thermal conductivity [W/(m °C)]
+λf = 0.6
+# Fluid density [g/m3]
+ρf = 997000
+# Fluid diffusion coefficient
+dw = λf / (ρf * cf)
+# Flow speed [m/s]
+uf = 0.1
+# Characteristic linear dimension (diameter of the pipe) [m]
+Lf = 2r1
+# Fluid dynamic viscosity at 50 °C [Pa⋅s]
+μf = 0.0005465
+# Reynolds number
+Re = ρf*uf*Lf/μf
+
+# See https://gchem.cm.utexas.edu/data/section2.php?target=heat-capacities.php
+#     https://en.wikipedia.org/wiki/High-density_polyethylene
+#     https://en.wikipedia.org/wiki/Numerical_solution_of_the_convection%E2%80%93diffusion_equation
+
 
 # Numerical parameters #########################################################
+
+# Geometry distances [m]
+xx = 1
+yy = 1
+zz = 10
 
 # dt, dx, dy, dz [m]
 dt = 0.00005
@@ -74,7 +117,7 @@ hh2 = round(Int,h2/dz)
 ϕ2 = ones(ii,jj,kk)
 ϕ1 = ones(ii,jj,kk)
 
-# Define diffusion coefficient and velocities
+# # Set initial and boundary conditions. Define diffusion coefficient and velocities.
 d = zeros(ii,jj,kk)
 vx = zeros(ii,jj,kk)
 vy = zeros(ii,jj,kk)
@@ -92,66 +135,35 @@ for k in 1:kk
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
                 vz[i,j,k] = -1
-                ϕ2[i,j,k] = 1
+                ϕ2[i,j,k] = ϕs
             elseif r < r1+t1  # inner pipe
                 d[i,j,k] = dp
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
                 vz[i,j,k] = 0
-                ϕ2[i,j,k] = 1
+                ϕ2[i,j,k] = ϕs
             elseif r < r1+t1+r2  # inside outer pipe
                 d[i,j,k] = dw
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
                 vz[i,j,k] = 1
-                ϕ2[i,j,k] = 1
+                ϕ2[i,j,k] = ϕs
             elseif r < r1+t1+r2+t2  # outer pipe
                 d[i,j,k] = dp
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
                 vz[i,j,k] = 0
-                ϕ2[i,j,k] = 1
+                ϕ2[i,j,k] = ϕs
             else # rock
                 d[i,j,k] = dr
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
                 vz[i,j,k] = 0
-                ϕ2[i,j,k] = ϕ0(k)
+                ϕ2[i,j,k] = ϕ0(zk)
             end
         end
     end
 end
-#for k in hh1+1:hh2
-#    zk = k*dz
-#    for j in 1:jj
-#        yj = j*dy
-#        for i in 1:ii
-#            xi = i*dx
-#            r = norm([xi,yj]-[xc,yc])
-#            if r < r1+t1+r2  # inside outer pipe
-#                d[i,j,k] = dw
-#                vx[i,j,k] = 0
-#                vy[i,j,k] = 0
-#                vz[i,j,k] = 1
-#            elseif r < r1+t1+r2+t2  # outer pipe
-#                d[i,j,k] = dp
-#                vx[i,j,k] = 0
-#                vy[i,j,k] = 0
-#                vz[i,j,k] = 0
-#            else # rock
-#                d[i,j,k] = dr
-#                vx[i,j,k] = 0
-#                vy[i,j,k] = 0
-#                vz[i,j,k] = 0
-#            end
-#        end
-#    end
-#end
-
-# Set initial and boundary conditions
-#for k in 1:kk
-#    ϕ2[:,:,k] .= ϕ0(k)
-#end
 ϕ1 .= ϕ2
 
 # Solve eq. system
@@ -205,5 +217,4 @@ for t = 0:2:tt
         saveϕ(path, ϕ2, rx, ry, rz, t)
     end
 end
-
 
