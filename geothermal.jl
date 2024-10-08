@@ -28,7 +28,7 @@ end
 # Physical parameters ##########################################################
 
 # Maximum simulation time [s]
-sim_time = 120
+sim_time = 300 # 5 minutes
 
 # Earth surface temperature [°C]
 ϕs = 20
@@ -114,8 +114,8 @@ rz = 0:dz:zz
 # dt using stability condition (check this)
 dtd = (1/(2*maximum([dr,dp,df]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
 dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)])
-dt = minimum([dtd,dtc]) # 0.00005
-dt = dt/100
+dt = minimum([dtd,dtc])
+#dt = dt/10
 println("dt:$dt")
 
 # No. of time iterations
