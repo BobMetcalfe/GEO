@@ -28,22 +28,22 @@ end
 # Physical parameters ##########################################################
 
 # Maximum simulation time [s]
-sim_time = 5
+sim_time = 120
 
-# Earth surface temperature [C]
+# Earth surface temperature [°C]
 ϕs = 20
 
 # Rock: granite #########################################
+# Rock density [g/m3]
+ρr = 2750000
 # Rock specific heat [J/(g °C)]
 cr = 0.790
 # Rock thermal conductivity [W/(m °C)]
 λr =  2.62
-# Rock density [g/m3]
-ρr = 2750000
 # Rock diffusion coefficient
 dr = λr/(ρr*cr)
-# Rock temperature as a function of depth [C]
-ϕ0(d) = ϕs+0.1*d
+# Rock temperature as a function of depth [°C]
+ϕ0(d) = ϕs+1.0*d
 
 # Pipes: polyethylene ####################################
 # Inner pipe inside radius [m]
@@ -61,26 +61,26 @@ t2 = 0.01
 h2 = 9
 # Porosity: ratio of liquid volume to the total volume
 ε = 1
+# Pipe density [g/m3]
+ρp = 961000 
 # Pipe specific heat [J/(g °C)]
 cp = 2.9
 # Pipe thermal conductivity [W/(m °C)]
 λp = 0.54 
-# Pipe density [g/m3]
-ρp = 961000 
 # Pipe diffusion coefficient
 dp = λp/(ρp*cp)
 
 # Fluid: water #########################################
+# Fluid density [g/m3]
+ρf = 997000
 # Fluid specific heat capacity [J/(g °C)]
 cf = 4.184 
 # Fluid thermal conductivity [W/(m °C)]
 λf = 0.6
-# Fluid density [g/m3]
-ρf = 997000
 # Fluid diffusion coefficient
 df = λf/(ρf*cf)
 # Flow speed [m/s]
-uf = 1 #0.1
+uf = 0.01
 vx0 = uf
 vy0 = 0
 vz0 = 0
@@ -104,8 +104,8 @@ yy = 1
 zz = h2 + 1
 
 # dx, dy, dz [m]
-dx = 0.017
-dy = 0.017
+dx = 0.0166
+dy = 0.0166
 dz = 0.2
 rx = 0:dx:xx
 ry = 0:dy:yy
@@ -207,7 +207,6 @@ function updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
                 conv = ( ε*vx[i,j,k]*(ϕ1[i+1,j,k]-ϕ1[i-1,j,k])/2dx
                         +ε*vy[i,j,k]*(ϕ1[i,j+1,k]-ϕ1[i,j-1,k])/2dy
                         +ε*vz[i,j,k]*(ϕ1[i,j,k+1]-ϕ1[i,j,k-1])/2dz) # TODO: use upwind
-                conv = 0
                 source = 0.0
                 ϕ2[i,j,k] = (diff-conv+source)*dt+ϕ1[i,j,k]
             end
@@ -215,30 +214,29 @@ function updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
     end
 end
 
-function updateϕ_boundaries!(ϕ,ii,jj,kk)
+function updateϕ_boundaries!(ϕ,ii,jj,kk,dx,dy,dz)
     ϕ[1,2:jj-1,2:kk-1] .= ϕ[2,2:jj-1,2:kk-1]
     ϕ[ii,2:jj-1,2:kk-1] .= ϕ[ii-1,2:jj-1,2:kk-1]
     ϕ[2:ii-1,1,2:kk-1] .= ϕ[2:ii-1,2,2:kk-1]
     ϕ[2:ii-1,jj,2:kk-1] .= ϕ[2:ii-1,jj-1,2:kk-1]
     ϕ[2:ii-1,2:jj-1,1] .= ϕ[2:ii-1,2:jj-1,2]
-    ϕ[2:ii-1,2:jj-1,kk] .= ϕ0(kk)
+    ϕ[2:ii-1,2:jj-1,kk] .= ϕ0(kk*dz)
 end
 
 # Run simulation
 for t = 0:2:tt
     # Update ϕ
     updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
-    updateϕ_boundaries!(ϕ2,ii,jj,kk)
+    updateϕ_boundaries!(ϕ2,ii,jj,kk,dx,dy,dz)
     
     # Update ϕ
     updateϕ_domain!(ϕ1,ϕ2,d,vx,vy,vz,dx,dy,dz,dt)
-    updateϕ_boundaries!(ϕ1,ii,jj,kk)
+    updateϕ_boundaries!(ϕ1,ii,jj,kk,dx,dy,dz)
     
     # Save ϕ
-    if t % 100 == 0
-        println("Iteration:$t, time:$(t*dt), temp1:$(ϕ2[ii÷2,jj÷2,kk-1])")
+    if t % 10 == 0
+        println("Iteration:$t, time:$(round(t*dt,digits=2))s, bottom temp:$(round(ϕ2[ii÷2,jj÷2,kk-1],digits=4))°C")
         save(path,"temperature",ϕ2,rx,ry,rz,t)
-        println()
     end
 end
 
