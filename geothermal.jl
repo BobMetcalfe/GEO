@@ -162,7 +162,7 @@ for k in 1:kk
                 vy[i,j,k] = 0
                 vz[i,j,k] = 0
                 ϕ2[i,j,k] = ϕs
-            elseif r < r2  # inside outer pipe
+            elseif r < r2  # between inner and outer pipe 
                 d[i,j,k] = df
                 vx[i,j,k] = 0
                 vy[i,j,k] = 0
@@ -195,20 +195,34 @@ save(path,"diff_coeff",d,rx,ry,rz,0)
 # Simulation ##################################################################
 
 # Solve eq. system
-function updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
+function updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
     @threads for k = 2:kk-1
         for j = 2:jj-1
-            for i = 2:ii-1
+            for i = 2:ii-1                
+                # Convective term
+                xi, yj = i*dx, j*dy
+                r = norm([xi,yj]-[xc,yc])
+                if r < r1  # inside inner pipe 
+                    conv = ( ε*vx[i,j,k]*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx
+                            +ε*vy[i,j,k]*(ϕ1[i,j+1,k]-ϕ1[i,j,k])/dy
+                            +ε*vz[i,j,k]*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz)
+                elseif r1+t1 < r < r2 # between inner and outer pipe 
+                    conv = ( ε*vx[i,j,k]*(ϕ1[i,j,k]-ϕ1[i-1,j,k])/dx
+                            +ε*vy[i,j,k]*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy
+                            +ε*vz[i,j,k]*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)
+                else
+                    conv = 0
+                end
+                # Diffusive term
                 diff = (((d[i+1,j,k]+d[i,j,k])/2*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx 
                         -(d[i,j,k]+d[i-1,j,k])/2*(ϕ1[i,j,k]-ϕ1[i-1,j,k])/dx)/dx
                        +((d[i,j+1,k]+d[i,j,k])/2*(ϕ1[i,j+1,k]-ϕ1[i,j,k])/dy
                         -(d[i,j,k]+d[i,j-1,k])/2*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy)/dy
                        +((d[i,j,k+1]+d[i,j,k])/2*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz
                         -(d[i,j,k]+d[i,j,k-1])/2*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)/dz)
-                conv = ( ε*vx[i,j,k]*(ϕ1[i+1,j,k]-ϕ1[i-1,j,k])/2dx
-                        +ε*vy[i,j,k]*(ϕ1[i,j+1,k]-ϕ1[i,j-1,k])/2dy
-                        +ε*vz[i,j,k]*(ϕ1[i,j,k+1]-ϕ1[i,j,k-1])/2dz) # TODO: use upwind
+                # Source term
                 source = 0.0
+                # Update temperature
                 ϕ2[i,j,k] = (diff-conv+source)*dt+ϕ1[i,j,k]
             end
          end
@@ -227,11 +241,11 @@ end
 # Run simulation
 for t = 0:2:tt
     # Update ϕ
-    updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt)
+    updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
     updateϕ_boundaries!(ϕ2,ii,jj,kk,dx,dy,dz)
     
     # Update ϕ
-    updateϕ_domain!(ϕ1,ϕ2,d,vx,vy,vz,dx,dy,dz,dt)
+    updateϕ_domain!(ϕ1,ϕ2,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
     updateϕ_boundaries!(ϕ1,ii,jj,kk,dx,dy,dz)
     
     # Save ϕ
