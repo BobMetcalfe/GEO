@@ -5,7 +5,7 @@ using WriteVTK
 ################################################################################
 # Diffusion convection equation for temperature in a pipe-in-pipe geometry
 #
-# Equation: ρ c ∂ϕ/∂t =  ∂(λ dϕ/∂x)/∂x + ∂(λ ∂ϕ/∂y)/∂y + ∂(λ ∂ϕ/∂z)/∂z
+# Equation: ρ c ∂ϕ/∂t =  ∂(λ ∂ϕ/∂x)/∂x + ∂(λ ∂ϕ/∂y)/∂y + ∂(λ ∂ϕ/∂z)/∂z
 #                        -(ε vx ∂ϕ/∂x + ε vy ∂ϕ/∂y + ε vz ∂ϕ/∂z)
 #                        + S
 # Initial conditions:
@@ -28,7 +28,7 @@ end
 # Physical parameters ##########################################################
 
 # Maximum simulation time [s]
-sim_time = 300 # 5 minutes
+sim_time = 2400 # 40 minutes
 
 # Earth surface temperature [°C]
 ϕs = 20
