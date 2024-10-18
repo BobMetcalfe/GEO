@@ -147,15 +147,17 @@ for k in 1:kk
         yj = j*dy
         for i in 1:ii
             xi = i*dx
+            # Rock
+            d[i,j,k] = dr
+            ϕ2[i,j,k] = ϕ0(zk)
+            # Well
             for (idx0, idx1) in zip(px, py)
                 r = norm([xi,yj]-[idx0,idx1]) # dist from point to well
-                if r < r1  # inside inner pipe
+                if r < r2  # inside inner pipe
                     d[i,j,k] = 0 # not relevent, well is modelled as a Dirichlet boundary
                     ϕ2[i,j,k] = ϕs
-                else # rock
-                    d[i,j,k] = dr
-                    ϕ2[i,j,k] = ϕ0(zk)
                 end
+            end
         end
     end
 end
@@ -165,11 +167,10 @@ save(path,"diff_coeff",d,rx,ry,rz,0)
 # Simulation ##################################################################
 
 # Solve eq. system
-function updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt,xc,yc,r1,t1,r2)
+function updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
     @threads for k = 2:kk-1
         for j = 2:jj-1
-            for i = 2:ii-1                
-                # Convective term
+            for i = 2:ii-1
                 if d[i,j,k] > 0  # in the rock formation
                     # Diffusive term
                     diff = (((d[i+1,j,k]+d[i,j,k])/2*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx 
@@ -200,11 +201,11 @@ end
 # Run simulation
 for t = 0:2:tt
     # Update ϕ
-    updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
+    updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
     updateϕ_boundaries!(ϕ2,ii,jj,kk,dx,dy,dz)
     
     # Update ϕ
-    updateϕ_domain!(ϕ1,ϕ2,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
+    updateϕ_domain!(ϕ1,ϕ2,d,dx,dy,dz,dt)
     updateϕ_boundaries!(ϕ1,ii,jj,kk,dx,dy,dz)
     
     # Save ϕ
