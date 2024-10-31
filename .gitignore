@@ -1,3 +1,7 @@
 Manifest.toml
 ./results/*
 ./array_results/*
+./animations/*
+*.avi
+*.pvsm
+./array/*
