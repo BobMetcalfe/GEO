@@ -5,3 +5,5 @@ Manifest.toml
 *.avi
 *.pvsm
 ./array/*
+./plots/*
+./.pyenv/*
