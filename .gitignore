@@ -1,9 +1,9 @@
 Manifest.toml
-./results/*
+results/
 ./array_results/*
-./animations/*
+animations/
 *.avi
 *.pvsm
-./array/*
-./plots/*
-./.pyenv/*
+array/
+plots/
+.pyvenv/

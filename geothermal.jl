@@ -61,6 +61,7 @@ h2 = 9
 cp = 2.9
 # Pipe thermal conductivity [W/(m °C)]
 λp = 0.54 
+
 # Pipe diffusion coefficient
 dp = λp/(ρp*cp)
 

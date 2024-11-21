@@ -4,16 +4,18 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Optim, Hyperopt
 using Random
 
+
+
 ## TODO
 # - Add reference papers below
 # --> probabilistic descent: https://arxiv.org/pdf/2204.01275
-# - Debug the optimization code below to get sensible outputs
-# - IMPORTANT: Differentiable Programming approaches in Julia
+# --> Upper UpperConfidenceBound: https://www.jmlr.org/papers/volume3/auer02a/auer02a.pdf
+
+# - Redo LHS (hardcoding inputs)
 
 ## Notes
 #  - Cost Reduction: Computational Realm
 # - If case study data is available => optimization approach would be more feasible
-
 
 ## Differential Evolution Optimizers
 # - metaheuristics, do not guarantee that an optimal solution is ever found
@@ -36,36 +38,60 @@ function f_heat(px_py)
     return -sum_heat
 end
 
-## Bayesian Optimization
-function bayesian_optimization(px_py, grid_size)
-    # TODO: is a normal prior reasonable in this case
+# # Bayesian Optimization
+# https://arxiv.org/pdf/1807.02811
+# https://towardsdatascience.com/bayesian-optimization-concept-explained-in-layman-terms-1d2bcdeaf12f
+function bayesian_helper(px_py, grid_size)
     num_dims = length(px_py)
     model = ElasticGPE( num_dims, 
                         mean = MeanConst(grid_size/2.0), 
                         kernel = SEArd(zeros(num_dims), 5.), 
-                        logNoise = 0.0, 
+                        logNoise = -10.0, 
                         capacity = 3000) 
     # set_priors!(model.mean, [Normal(1, 2)]) # if not uniform prior (i.e Normal prior)
-    modeloptimizer = MAPGPOptimizer(every = 10, 
-                                    # noisebounds = [fill(-4, num_dims), fill(3, num_dims)], 
+    modeloptimizer = MAPGPOptimizer(every = 1, # changed from 10 to 1
+                                    # noisebounds = [-10, -10], 
                                     # kernbounds = [[-1, -1, 0], [4, 4, 10]], 
-                                    maxeval = 40)
+                                    maxeval = 10) # changed from 40 to 10
     opt = BOpt(f_heat, 
                 model, 
                 UpperConfidenceBound(), 
                 modeloptimizer, 
                 fill(0, num_dims), 
                 fill(grid_size, num_dims), 
-                repetitions = 5, 
+                repetitions = 1, 
                 maxiterations = 400, 
                 sense = Min, 
                 acquisitionoptions = (method = :LD_LBFGS, restarts = 5, maxtime = 0.1, maxeval = 1000), 
                 verbosity = Progress)
+    return opt
+end
+
+function bayesian_optimization(px_py, grid_size)
+    opt = bayesian_helper(px_py, grid_size)
+    result = boptimize!(opt)
+    maxiterations!(opt, 50)
     result = boptimize!(opt)
     return result
 end
+
+
+## Track and plot history of optimal answers for each iteration from bayesian Optimization
+function plot_bayesian_optimization(px_py, grid_size; num_plot_points = 10)
+    opt = bayesian_helper(px_py, grid_size)
+
+    value_history = [0.0 for _ in 1:num_plot_points]
+    for i in 1:num_plot_points
+        result = boptimize!(opt)
+        maxiterations!(opt, 50)
+        value_history[i] = - result.observed_optimum
+    end
+    x = [i for i in 1:num_plot_points]
+    plot(x, value_history, label="Bayesian Optimization", seriestype=:scatter, marker=:x, xlabel="Iterations", ylabel="Total Heat Output")
+    savefig("bayesian_optim.png")
+end
  
-## Latin Hypercube Sampling
+# Latin Hypercube Sampling
 function latin_hypercube_sampling(f, points, grid_size)
     if length(points) % 2 != 0
         error("The points array must have an even number of elements representing coordinate pairs.")
@@ -80,11 +106,6 @@ function latin_hypercube_sampling(f, points, grid_size)
     hohb = hyperband(objective, candidates; R=50, η=3, threads=true, inner=LHSampler())
     return hohb
 end
-
-## Differential Programming Approach
-
-
-
 
 
 function plot_all(grid_size, num_wells)
@@ -119,6 +140,7 @@ function plot_all(grid_size, num_wells)
         plot(x3, y3, label="Bayesian Optimization", seriestype=:scatter, marker=:cross),
         plot(x4, y4, label="Latin Hypercube Sampling with GD", seriestype=:scatter, marker=:x),
         layout=(2, 2), 
+        size =(1000, 1000),
         title="Well Locations"
     )
     plot!(legend=:outerbottom)
@@ -127,4 +149,6 @@ end
 
 grid_size = 100.0
 num_wells = 40
-plot_all(grid_size, num_wells)
+
+# plot_all(grid_size, num_wells)
+plot_bayesian_optimization(fill(0.0, 2*num_wells), Int(grid_size); num_plot_points=10)
