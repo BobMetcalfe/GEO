@@ -15,15 +15,18 @@ include("utils.jl")
 # Maximum simulation time [s]
 sim_time = 2400 # 40 minutes
 
-# Earth surface temperature [°C]
-ϕs = 20
+# Earth surface temperature [K]
+ϕs = 293.15 # 20 °C
+
+# Fluid Initial temperature [K]
+ϕf0 = 293.15 # 20 °C
 
 # Rock: granite #########################################
-# Rock density [g/m3]
-ρr = 2750000
-# Rock specific heat [J/(g °C)]
-cr = 0.790
-# Rock thermal conductivity [W/(m °C)]
+# Rock density [kg/m3]
+ρr = 2750
+# Rock specific heat [J/(kg K)]
+cr = 790
+# Rock thermal conductivity [W/(m K)]
 λr = 2.62
 
 # Pipes: polyethylene ####################################
@@ -39,19 +42,19 @@ t2 = 0.01
 h2 = 9
 # Porosity: ratio of liquid volume to the total volume
 ε = 1
-# Pipe density [g/m3]
-ρp = 961000
-# Pipe specific heat [J/(g °C)]
-cp = 2.9
-# Pipe thermal conductivity [W/(m °C)]
+# Pipe density [kg/m3]
+ρp = 961
+# Pipe specific heat [J/(kg K)]
+cp = 2900
+# Pipe thermal conductivity [W/(m K)]
 λp = 0.54
 
 # Fluid: water #########################################
-# Fluid density [g/m3]
-ρf = 997000
-# Fluid specific heat capacity [J/(g °C)]
-cf = 4.184
-# Fluid thermal conductivity [W/(m °C)]
+# Fluid density [kg/m3]
+ρf = 997
+# Fluid specific heat capacity [J/(kg K)]
+cf = 4184
+# Fluid thermal conductivity [W/(m K)]
 λf = 0.6
 # Flow speed [m/s]
 uf = 0.01
@@ -122,8 +125,8 @@ function updateϕ_boundaries!(ϕ, ii, jj, kk, dx, dy, dz, ϕ0)
     ϕ[2:ii-1, 2:jj-1, kk] .= ϕ0(kk * dz)
 end
 
-# Run simulation
-function run_simulation(sim_time, ϕs, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp, cp, λp, ρf, cf, λf, uf, μf, xx, yy, zz, dx, dy, dz)
+
+function run_simulation(sim_time, ϕs, ϕf0, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp, cp, λp, ρf, cf, λf, uf, μf, xx, yy, zz, dx, dy, dz)
     # Rock diffusion coefficient
     dr = λr / (ρr * cr)
 
@@ -197,8 +200,8 @@ function run_simulation(sim_time, ϕs, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp
                     vx[i, j, k] = 0
                     vy[i, j, k] = 0
                     vz[i, j, k] = -uf
-                    ϕ2[i, j, k] = ϕs
-                elseif r < r1 + t1  # inner pipe
+                    ϕ2[i, j, k] = ϕf0
+                elseif r < r1 + t1  # inner pipe itself
                     d[i, j, k] = dp
                     vx[i, j, k] = 0
                     vy[i, j, k] = 0
@@ -209,7 +212,7 @@ function run_simulation(sim_time, ϕs, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp
                     vx[i, j, k] = 0
                     vy[i, j, k] = 0
                     vz[i, j, k] = uf
-                    ϕ2[i, j, k] = ϕs
+                    ϕ2[i, j, k] = ϕf0
                 elseif r < r2 + t2  # outer pipe
                     d[i, j, k] = dp
                     vx[i, j, k] = 0
@@ -244,33 +247,23 @@ function run_simulation(sim_time, ϕs, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp
         updateϕ_boundaries!(ϕ1, ii, jj, kk, dx, dy, dz, ϕ0)
 
         # Save ϕ
-        # if t % 10 == 0
-        #     # println("Iteration:$t, time:$(round(t*dt,digits=2))s, bottom temp:$(round(ϕ2[ii÷2,jj÷2,kk-1],digits=4))°C")
-        #     # save(path, "temperature", ϕ2, rx, ry, rz, t)
-        # end
-        Δϕ = ϕ2[Int(floor((ii+1)/2)), Int(floor((jj+1)/2)), 1] - ϕs
-        cumulative_heat_extracted += π * r1^2 * vz[Int(floor((ii+1)/2)), Int(floor((jj+1)/2)), 1] * 2 * ρf * cf * Δϕ
+        if t % 10 == 0
+            println("Iteration:$t, time:$(round(t*dt,digits=2))s, bottom temp:$(round(ϕ2[ii÷2,jj÷2,kk-1],digits=4) - 273.15)°C")
+        end
+        
+        Δϕ = ϕ2[Int(floor((ii+1)/2)), Int(floor((jj+1)/2)), 1] - ϕf0
+
+        cumulative_heat_extracted -= π * r1^2 * vz[Int(floor((ii+1)/2)), Int(floor((jj+1)/2)), 1] * 2 * ρf * cf * Δϕ
     end
     return cumulative_heat_extracted
 end
 
-total_heat_produced = run_simulation(sim_time, ϕs, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp, cp, λp, ρf, cf, λf, uf, μf, xx, yy, zz, dx, dy, dz)
-print("total heat produced:", total_heat_produced)
+total_heat_produced = run_simulation(sim_time, ϕs, ϕf0, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp, cp, λp, ρf, cf, λf, uf, μf, xx, yy, zz, dx, dy, dz)
+print("Total Heat Produced:", total_heat_produced, "J\n")
+print("Production Capacity:", total_heat_produced / sim_time, "W\n")
 
-## Updates for today's meetings:
-# - Fixed some issues with my stochastic optimizers from last week, especially differential evolution optimizers which perfomed pretty poorly last week
-# - Modified the existing geothermal model to instead compute the total heat produced by the system
-# - Tried differentiable program using Zygote on the simple well distribution function I had from before
 
 ## Next Steps
 # - Merging the array model and the well model
 # - Running a simulation on the whole model to get a sense of how long it takes (using some randomly chosen well positions)
 # - Attempt to use the differentiable programming approach to optimize the well positions
-
-## Possible Concerns
-# - Interpretability of Differentiating a Model (through differentiable programming)
-
-
-## Comments
-# - The injection temp. of the fluid should be able to be different from the earth temp.
-# - 
