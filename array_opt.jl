@@ -3,15 +3,12 @@ using Plots
 using BayesianOptimization, GaussianProcesses, Distributions
 using Optim, Hyperopt
 using Random
-
-
+using LatinHypercubeSampling
 
 ## TODO
 # - Add reference papers below
 # --> probabilistic descent: https://arxiv.org/pdf/2204.01275
 # --> Upper UpperConfidenceBound: https://www.jmlr.org/papers/volume3/auer02a/auer02a.pdf
-
-# - Redo LHS (hardcoding inputs)
 
 ## Notes
 #  - Cost Reduction: Computational Realm
@@ -35,15 +32,16 @@ function f_heat(px_py)
             sum_heat += sqrt((p_x - q_x)^2 + (p_y - q_y)^2)
         end
     end
-    return -sum_heat
+    return sum_heat
 end
 
 # # Bayesian Optimization
 # https://arxiv.org/pdf/1807.02811
 # https://towardsdatascience.com/bayesian-optimization-concept-explained-in-layman-terms-1d2bcdeaf12f
-function bayesian_helper(px_py, grid_size)
+function bayesian_helper(px_py, grid_size; lhs=false)
+    # TODO: change the structure of the input array to be less confusing
     num_dims = length(px_py)
-    model = ElasticGPE( num_dims, 
+    model = ElasticGPE(num_dims, 
                         mean = MeanConst(grid_size/2.0), 
                         kernel = SEArd(zeros(num_dims), 5.), 
                         logNoise = -10.0, 
@@ -53,16 +51,26 @@ function bayesian_helper(px_py, grid_size)
                                     # noisebounds = [-10, -10], 
                                     # kernbounds = [[-1, -1, 0], [4, 4, 10]], 
                                     maxeval = 10) # changed from 40 to 10
+    if lhs
+        init = ScaledLHSIterator
+    else
+        init = ScaledSobolIterator
+    end
+    lower_bounds = fill(0, num_dims)
+    upper_bounds = fill(grid_size, num_dims)
+    init_iterations = 1
     opt = BOpt(f_heat, 
                 model, 
                 UpperConfidenceBound(), 
                 modeloptimizer, 
-                fill(0, num_dims), 
-                fill(grid_size, num_dims), 
+                lower_bounds, 
+                upper_bounds, 
                 repetitions = 1, 
-                maxiterations = 400, 
-                sense = Min, 
+                maxiterations = 1, 
+                sense = Max, 
                 acquisitionoptions = (method = :LD_LBFGS, restarts = 5, maxtime = 0.1, maxeval = 1000), 
+                initializer_iterations = init_iterations,
+                initializer = init(lower_bounds, upper_bounds, init_iterations),
                 verbosity = Progress)
     return opt
 end
@@ -75,38 +83,33 @@ function bayesian_optimization(px_py, grid_size)
     return result
 end
 
-
 ## Track and plot history of optimal answers for each iteration from bayesian Optimization
-function plot_bayesian_optimization(px_py, grid_size; num_plot_points = 10)
+function plot_bayesian(px_py, grid_size; num_plot_points = 10)
     opt = bayesian_helper(px_py, grid_size)
-
     value_history = [0.0 for _ in 1:num_plot_points]
     for i in 1:num_plot_points
         result = boptimize!(opt)
-        maxiterations!(opt, 50)
-        value_history[i] = - result.observed_optimum
+        value_history[i] = result.observed_optimum
     end
     x = [i for i in 1:num_plot_points]
-    plot(x, value_history, label="Bayesian Optimization", seriestype=:scatter, marker=:x, xlabel="Iterations", ylabel="Total Heat Output")
-    savefig("bayesian_optim.png")
+    # plot(x, value_history, label="Bayesian Optimization", seriestype=:scatter, xlabel="Iterations", ylabel="Total Heat Output")
+    plot(x, value_history, title="Bayesian Optimization", marker=:circle,  ylabel="Total Heat Output", xlabel="Iterations")  # Add markers ('o') at each data point
+    savefig("jl_plots/bayesian_optim.png")
 end
  
-# Latin Hypercube Sampling
-function latin_hypercube_sampling(f, points, grid_size)
-    if length(points) % 2 != 0
-        error("The points array must have an even number of elements representing coordinate pairs.")
-    end
-    candidates = [LinRange(0, grid_size, Int(10 * grid_size)) for _ in points]  
-    objective = function (resources, points)
-        lower = [0 for _ in 1:length(points)]
-        upper = [grid_size for _ in 1:length(points)]
-        res = Optim.optimize(f, lower, upper, points, Optim.Fminbox(Optim.GradientDescent()), Optim.Options(time_limit=resources/100))
-        Optim.minimum(res), Optim.minimizer(res)
-    end
-    hohb = hyperband(objective, candidates; R=50, η=3, threads=true, inner=LHSampler())
-    return hohb
-end
+# Bayesian Optimization with Latin Hypercube Sampling
+function plot_bayesian_lhs(px_py, grid_size; num_plot_points = 10)
+    opt = bayesian_helper(px_py, grid_size; lhs=true)
+    value_history = [0.0 for _ in 1:num_plot_points]
 
+    for i in 1:num_plot_points
+        result = boptimize!(opt)
+        value_history[i] = result.observed_optimum
+    end
+    x = [i for i in 1:num_plot_points]
+    plot(x, value_history, title="Bayesian Optimization with LHS", marker=:circle, xlabel="Iterations", ylabel="Total Heat Output")
+    savefig("jl_plots/bayesian_optim_lhs.png")
+end
 
 function plot_all(grid_size, num_wells)
     num_dims = 2 * num_wells
@@ -147,8 +150,14 @@ function plot_all(grid_size, num_wells)
     savefig("myplot.png") 
 end
 
-grid_size = 100.0
-num_wells = 40
+function main()
+    grid_size = 100.0
+    num_wells = 40
+    # plot_all(grid_size, num_wells)
+    plot_bayesian_lhs(fill(0.0, 2*num_wells), Int(grid_size); num_plot_points=100)
+end
 
-# plot_all(grid_size, num_wells)
-plot_bayesian_optimization(fill(0.0, 2*num_wells), Int(grid_size); num_plot_points=10)
+# main()
+
+# TODO: a new objective function that computes the energy output for the whole array (think about how to handle the Dirichlet boundary conditions)
+# TODO: a plot of energy output against time for different optimization algorithms
