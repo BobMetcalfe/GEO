@@ -23,7 +23,6 @@ def f_heat(px_py):
     return - sum_heat
 
 def bayesian_optimization(f, grid_size, num_wells, acq_func="EI"):
-    # TODO: try different acquisition functions
     bounds = [(0.0, grid_size) for _ in range(2*num_wells)]
 
     res = gp_minimize(f,                  # the function to minimize

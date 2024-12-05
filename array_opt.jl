@@ -4,6 +4,7 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Optim, Hyperopt
 using Random
 using LatinHypercubeSampling
+using Optimization, OptimizationEvolutionary
 
 ## TODO
 # - Add reference papers below
@@ -83,32 +84,62 @@ function bayesian_optimization(px_py, grid_size)
     return result
 end
 
-## Track and plot history of optimal answers for each iteration from bayesian Optimization
-function plot_bayesian(px_py, grid_size; num_plot_points = 10)
-    opt = bayesian_helper(px_py, grid_size)
-    value_history = [0.0 for _ in 1:num_plot_points]
-    for i in 1:num_plot_points
-        result = boptimize!(opt)
-        value_history[i] = result.observed_optimum
+## Bayesian Optimization
+function plot_bayesian(px_py, grid_size, plot_name, plot_title; num_plot_points = 10, converge=false, lhs=false)
+    opt = bayesian_helper(px_py, grid_size; lhs=lhs)
+    if converge
+        value_history = []
+        prev = 0.0
+        while true
+            result = boptimize!(opt).observed_optimum
+            value_history = append!(value_history, result)
+            if abs(prev - result) < 1e-5
+                break
+            end
+            prev = result
+        end
+        x = [i for i in 1:length(value_history)]
+    else
+        value_history = [0.0 for _ in 1:num_plot_points]
+        for i in 1:num_plot_points
+            result = boptimize!(opt)
+            value_history[i] = result.observed_optimum
+        end
+        x = [i for i in 1:num_plot_points]
     end
-    x = [i for i in 1:num_plot_points]
-    # plot(x, value_history, label="Bayesian Optimization", seriestype=:scatter, xlabel="Iterations", ylabel="Total Heat Output")
-    plot(x, value_history, title="Bayesian Optimization", marker=:circle,  ylabel="Total Heat Output", xlabel="Iterations")  # Add markers ('o') at each data point
-    savefig("jl_plots/bayesian_optim.png")
+    plot(x, value_history, title=plot_title, marker=:circle,  ylabel="Total Heat Output", xlabel="Iterations", label="Heat Energy")  # Add markers ('o') at each data point
+    savefig(plot_name)
+end
+
+# Vanilla Bayesian Optimization
+function plot_bayesian_vanilla(px_py, grid_size; num_plot_points = 10, converge=false)
+    plot_bayesian(px_py, grid_size, "jl_plots/bayesian_optim.png", "Bayesian Optimization"; num_plot_points=num_plot_points, converge=converge)
 end
  
 # Bayesian Optimization with Latin Hypercube Sampling
-function plot_bayesian_lhs(px_py, grid_size; num_plot_points = 10)
-    opt = bayesian_helper(px_py, grid_size; lhs=true)
-    value_history = [0.0 for _ in 1:num_plot_points]
+function plot_bayesian_lhs(px_py, grid_size; num_plot_points = 10, converge=false)
+    plot_bayesian(px_py, grid_size, "jl_plots/bayesian_optim_lhs.png", "Bayesian Optimization with LHS"; num_plot_points=num_plot_points, converge=converge, lhs=true)
+end
 
-    for i in 1:num_plot_points
-        result = boptimize!(opt)
-        value_history[i] = result.observed_optimum
+## Differential Evolution Optimizer
+function differential_evolution(f, grid_size, num_wells; plot_name="jl_plots/de_optim.png", plot_title="Differential Evolution Optimization")
+    # https://docs.sciml.ai/Optimization/stable/optimization_packages/evolutionary/
+    history = []
+    # callback = (_, loss_val) -> push!(history, loss_val)
+    function callback(_, loss_val)
+        push!(history, - loss_val)
+        return false
     end
-    x = [i for i in 1:num_plot_points]
-    plot(x, value_history, title="Bayesian Optimization with LHS", marker=:circle, xlabel="Iterations", ylabel="Total Heat Output")
-    savefig("jl_plots/bayesian_optim_lhs.png")
+    wrapped_f = (u, _) -> - f(u)
+    opt_f = OptimizationFunction(wrapped_f)
+    lb = fill(0.0, 2*num_wells)
+    ub = fill(grid_size, 2*num_wells)
+    pos = [rand(0:grid_size) for _ in 1:2*num_wells]
+    problem = Optimization.OptimizationProblem(opt_f, pos, lb = lb, ub = ub)
+    _ = solve(problem, Evolutionary.CMAES(μ = 40, λ = 100), callback=callback)
+    x = [i for i in 1:length(history)]
+    plot(x, history, title=plot_title, marker=:circle,  ylabel="Total Heat Output", xlabel="Iterations", label="Heat Energy")  # Add markers ('o') at each data point
+    savefig(plot_name)
 end
 
 function plot_all(grid_size, num_wells)
@@ -154,10 +185,12 @@ function main()
     grid_size = 100.0
     num_wells = 40
     # plot_all(grid_size, num_wells)
-    plot_bayesian_lhs(fill(0.0, 2*num_wells), Int(grid_size); num_plot_points=100)
+    # plot_bayesian(fill(0.0, 2*num_wells), Int(grid_size); num_plot_points=100)
+    differential_evolution(f_heat, grid_size, num_wells)
 end
 
 # main()
 
 # TODO: a new objective function that computes the energy output for the whole array (think about how to handle the Dirichlet boundary conditions)
+
 # TODO: a plot of energy output against time for different optimization algorithms
