@@ -7,3 +7,4 @@ animations/
 array/
 plots/
 .pyvenv/
+.DS_Store

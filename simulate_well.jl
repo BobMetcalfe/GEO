@@ -1,7 +1,6 @@
 using LinearAlgebra
 using .Threads
-using WriteVTK
-include("utils.jl")
+# include("utils.jl")
 
 ################################################################################
 # Diffusion convection equation for temperature in a pipe-in-pipe geometry
@@ -80,8 +79,8 @@ dz = 0.125
 
 # Solve eq. system
 function updateϕ_domain!(ϕ2, ϕ1, d, vx, vy, vz, dx, dy, dz, dt, xc, yc, r1, t1, r2, ε, ii, jj, kk)
-    @threads for k = 2:kk-1
-        for j = 2:jj-1
+    for k = 2:kk-1
+        @threads for j = 2:jj-1
             for i = 2:ii-1
                 # Convective term
                 xi, yj = i * dx, j * dy
@@ -270,19 +269,3 @@ function main()
 end
 
 main()
-
-
-## Next Steps
-# - Merging the array model and the well model
-# - Running a simulation on the whole model to get a sense of how long it takes (using some randomly chosen well positions)
-# - Attempt to use the differentiable programming approach to optimize the well positions
-
-
-## TODO: Plot the outlet temperature to see if it eventually reaches a steady state 
-
-## Emmanuel
-# - AI-based approximation (inspired by the idea of "digital twins"). 
-# - Emmanuel's idea is to use ChatGPT to generate reduced models that have the same inputs and outputs as our model. 
-#   The reduced model should be verified until the results are sensible.
-
-## TODO: What are digital twins
