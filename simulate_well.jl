@@ -1,6 +1,5 @@
 using LinearAlgebra
 using .Threads
-# include("utils.jl")
 
 ################################################################################
 # Diffusion convection equation for temperature in a pipe-in-pipe geometry
@@ -34,11 +33,11 @@ r1 = 0.1
 # Inner pipe thickness [m]
 t1 = 0.01
 # Inner pipe height [m]
-h1 = 8.5
+h1 = 98.5
 # Outer pipe thickness [m]
 t2 = 0.01
 # Outer pipe height [m]
-h2 = 9
+h2 = 99
 # Porosity: ratio of liquid volume to the total volume
 ε = 1
 # Pipe density [kg/m3]
@@ -264,8 +263,9 @@ end
 
 function main()
     total_heat_produced = run_well_simulation(sim_time, ϕs, ϕf0, ρr, cr, λr, r1, t1, h1, t2, h2, ε, ρp, cp, λp, ρf, cf, λf, uf, μf, xx, yy, zz, dx, dy, dz)
-    print("Total Heat Produced:", total_heat_produced, "J\n")
-    print("Production Capacity:", total_heat_produced / sim_time, "W\n")
+    # print("Total Heat Produced:", total_heat_produced, "J\n")
+    # print("Production Capacity:", total_heat_produced / sim_time, "W\n")
 end
 
 main()
+    
