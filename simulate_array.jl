@@ -11,13 +11,9 @@ include("utils.jl")
 #                        + S
 # Initial conditions:
 #
+
 # Boundary conditions:
 #
-
-# Create experiment folder #####################################################
-path = "results/"
-rm(path, recursive=true, force=true)
-mkpath(path)
 
 # Physical parameters ##########################################################
 
@@ -61,7 +57,6 @@ h2 = 9
 cp = 2.9
 # Pipe thermal conductivity [W/(m °C)]
 λp = 0.54 
-
 # Pipe diffusion coefficient
 dp = λp/(ρp*cp)
 
@@ -93,36 +88,39 @@ Re = ρf*uf*Lf/μf
 
 # Numerical parameters #########################################################
 
-# Geometry distances [m]
-xx = 1
-yy = 1
+# Geometric distances [m]
+xx = 100
+yy = 100
 zz = h2+1
 
 # dx, dy, dz [m]
-dx = 0.01
-dy = 0.01
+dx = 1
+dy = 1
 dz = 0.125
 rx = 0:dx:xx
 ry = 0:dy:yy
 rz = 0:dz:zz
 
+# well position array_result: px, py
+px = [25, 50, 75]
+py = [25, 50, 75]
+
+# Number of wells
+mm = length(px)
+
 # dt using stability condition (check this)
 dtd = (1/(2*maximum([dr,dp,df]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
 dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)])
 dt = minimum([dtd,dtc])
-#dt = dt/10
-println("dt:$dt")
 
 # No. of time iterations
 tt = round(Int,sim_time/dt) 
-println("tt:$tt")
 
 # No. of spatial domain nodes
 ii = round(Int,xx/dx)
 jj = round(Int,yy/dy)
 kk = round(Int,zz/dz)
 nn = ii * jj * kk
-println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 
 # No. of height nodes
 hh1 = round(Int,h1/dz)
@@ -133,92 +131,53 @@ hh2 = round(Int,h2/dz)
 ϕ1 = ones(ii,jj,kk)
 
 # Initial and boundary conditions #############################################
-d = zeros(ii,jj,kk)
-vx = zeros(ii,jj,kk)
-vy = zeros(ii,jj,kk)
-vz = zeros(ii,jj,kk)
-xc, yc = ii÷2*dx, jj÷2*dy
-for k in 1:kk
-    zk = k*dz
-    for j in 1:jj
-        yj = j*dy
-        for i in 1:ii
-            xi = i*dx
-            r = norm([xi,yj]-[xc,yc])
-            if r < r1  # inside inner pipe
-                d[i,j,k] = df
-                vx[i,j,k] = 0
-                vy[i,j,k] = 0
-                vz[i,j,k] = -uf
-                ϕ2[i,j,k] = ϕs
-            elseif r < r1+t1  # inner pipe
-                d[i,j,k] = dp
-                vx[i,j,k] = 0
-                vy[i,j,k] = 0
-                vz[i,j,k] = 0
-                ϕ2[i,j,k] = ϕs
-            elseif r < r2  # between inner and outer pipe 
-                d[i,j,k] = df
-                vx[i,j,k] = 0
-                vy[i,j,k] = 0
-                vz[i,j,k] = uf
-                ϕ2[i,j,k] = ϕs
-            elseif r < r2+t2  # outer pipe
-                d[i,j,k] = dp
-                vx[i,j,k] = 0
-                vy[i,j,k] = 0
-                vz[i,j,k] = 0
-                ϕ2[i,j,k] = ϕs
-            else # rock
+function init(px, py)
+    d = zeros(ii,jj,kk)
+    for k in 1:kk
+        zk = k*dz
+        for j in 1:jj
+            yj = j*dy
+            for i in 1:ii
+                xi = i*dx
+                # Rock
                 d[i,j,k] = dr
-                vx[i,j,k] = 0
-                vy[i,j,k] = 0
-                vz[i,j,k] = 0
                 ϕ2[i,j,k] = ϕ0(zk)
+                # Well
+                for (idx0, idx1) in zip(px, py)
+                    r = norm([xi,yj]-[idx0,idx1]) # dist from point to well
+                    if r < r2  # inside inner pipe
+                        d[i,j,k] = 0 # not relevent, well is modelled as a Dirichlet boundary
+                        ϕ2[i,j,k] = ϕs
+                    end
+                end
             end
         end
     end
+    ϕ1 .= ϕ2
 end
-ϕ1 .= ϕ2
-vels = Array{Float64}(undef,3,ii,jj,kk)
-vels[1,:,:,:] = vx
-vels[2,:,:,:] = vy
-vels[3,:,:,:] = vz
-save(path,"velocity",vels,rx,ry,rz,0)
-save(path,"diff_coeff",d,rx,ry,rz,0)
+
+init(px, py)
 
 # Simulation ##################################################################
 
 # Solve eq. system
-function updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
+function updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
     @threads for k = 2:kk-1
         for j = 2:jj-1
-            for i = 2:ii-1                
-                # Convective term
-                xi, yj = i*dx, j*dy
-                r = norm([xi,yj]-[xc,yc])
-                if r < r1  # inside inner pipe 
-                    conv = ( ε*vx[i,j,k]*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx
-                            +ε*vy[i,j,k]*(ϕ1[i,j+1,k]-ϕ1[i,j,k])/dy
-                            +ε*vz[i,j,k]*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz)
-                elseif r1+t1 < r < r2 # between inner and outer pipe 
-                    conv = ( ε*vx[i,j,k]*(ϕ1[i,j,k]-ϕ1[i-1,j,k])/dx
-                            +ε*vy[i,j,k]*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy
-                            +ε*vz[i,j,k]*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)
-                else
-                    conv = 0
+            for i = 2:ii-1
+                if d[i,j,k] > 0  # in the rock formation
+                    # Diffusive term
+                    diff = (((d[i+1,j,k]+d[i,j,k])/2*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx 
+                            -(d[i,j,k]+d[i-1,j,k])/2*(ϕ1[i,j,k]-ϕ1[i-1,j,k])/dx)/dx
+                        +((d[i,j+1,k]+d[i,j,k])/2*(ϕ1[i,j+1,k]-ϕ1[i,j,k])/dy
+                            -(d[i,j,k]+d[i,j-1,k])/2*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy)/dy
+                        +((d[i,j,k+1]+d[i,j,k])/2*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz
+                            -(d[i,j,k]+d[i,j,k-1])/2*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)/dz)
+                    # Source term
+                    source = 0.0
+                    # Update temperature
+                    ϕ2[i,j,k] = (diff+source)*dt+ϕ1[i,j,k]
                 end
-                # Diffusive term
-                diff = (((d[i+1,j,k]+d[i,j,k])/2*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx 
-                        -(d[i,j,k]+d[i-1,j,k])/2*(ϕ1[i,j,k]-ϕ1[i-1,j,k])/dx)/dx
-                       +((d[i,j+1,k]+d[i,j,k])/2*(ϕ1[i,j+1,k]-ϕ1[i,j,k])/dy
-                        -(d[i,j,k]+d[i,j-1,k])/2*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy)/dy
-                       +((d[i,j,k+1]+d[i,j,k])/2*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz
-                        -(d[i,j,k]+d[i,j,k-1])/2*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)/dz)
-                # Source term
-                source = 0.0
-                # Update temperature
-                ϕ2[i,j,k] = (diff-conv+source)*dt+ϕ1[i,j,k]
             end
          end
     end
@@ -234,19 +193,20 @@ function updateϕ_boundaries!(ϕ,ii,jj,kk,dx,dy,dz)
 end
 
 # Run simulation
-for t = 0:2:tt
-    # Update ϕ
-    updateϕ_domain!(ϕ2,ϕ1,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
-    updateϕ_boundaries!(ϕ2,ii,jj,kk,dx,dy,dz)
-    
-    # Update ϕ
-    updateϕ_domain!(ϕ1,ϕ2,d,vx,vy,vz,dx,dy,dz,dt,xc,yc,r1,t1,r2)
-    updateϕ_boundaries!(ϕ1,ii,jj,kk,dx,dy,dz)
-    
-    # Save ϕ
-    if t % 10 == 0
-        println("Iteration:$t, time:$(round(t*dt,digits=2))s, bottom temp:$(round(ϕ2[ii÷2,jj÷2,kk-1],digits=4))°C")
-        save(path,"temperature",ϕ2,rx,ry,rz,t)
+function run_array_simulation()
+    for t = 0:2:tt
+        # Update ϕ
+        updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
+        updateϕ_boundaries!(ϕ2,ii,jj,kk,dx,dy,dz)
+        
+        # Update ϕ
+        updateϕ_domain!(ϕ1,ϕ2,d,dx,dy,dz,dt)
+        updateϕ_boundaries!(ϕ1,ii,jj,kk,dx,dy,dz)
+        
+        # Save ϕ
+        if t % 10 == 0
+            println("Iteration:$t, time:$(round(t*dt,digits=2))s, bottom temp:$(round(ϕ2[ii÷2,jj÷2,kk-1],digits=4))°C")
+        end
     end
 end
 

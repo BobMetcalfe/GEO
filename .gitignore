@@ -1,3 +1,10 @@
 Manifest.toml
-./results/*
+results/
 ./array_results/*
+animations/
+*.avi
+*.pvsm
+array/
+plots/
+.pyvenv/
+.DS_Store
