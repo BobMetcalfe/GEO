@@ -1,29 +1,21 @@
 using LinearAlgebra
 using .Threads
-using WriteVTK
-include("utils.jl")
-
-################################################################################
-# Diffusion convection equation for temperature in a pipe-in-pipe geometry
+##### TODO: use SUPERPOSITION i.e model for one well after another and update the temperatures
+## Diffusion convection equation for temperature in a pipe-in-pipe geometry ##
 #
-# Equation: ρ c ∂ϕ/∂t =  ∂(λ ∂ϕ/∂x)/∂x + ∂(λ ∂ϕ/∂y)/∂y + ∂(λ ∂ϕ/∂z)/∂z
+# ρ c ∂ϕ/∂t =  ∂(λ ∂ϕ/∂x)/∂x + ∂(λ ∂ϕ/∂y)/∂y + ∂(λ ∂ϕ/∂z)/∂z
 #                        -(ε vx ∂ϕ/∂x + ε vy ∂ϕ/∂y + ε vz ∂ϕ/∂z)
 #                        + S
-# Initial conditions:
-#
 
-# Boundary conditions:
-#
-
-# Physical parameters ##########################################################
+### Physical parameters ###
 
 # Maximum simulation time [s]
-sim_time = 2400 # 40 minutes
+sim_time = 240 # 4 minutes
 
 # Earth surface temperature [°C]
 ϕs = 20
 
-# Rock: granite #########################################
+## Rock: granite ##
 # Rock density [g/m3]
 ρr = 2750000
 # Rock specific heat [J/(g °C)]
@@ -35,49 +27,32 @@ dr = λr/(ρr*cr)
 # Rock temperature as a function of depth [°C]
 ϕ0(d) = ϕs+0.5*d
 
-# Pipes: polyethylene ####################################
-# Inner pipe inside radius [m]
-r1 = 0.1
-# Inner pipe thickness [m]
-t1 = 0.01
-# Inner pipe height [m]
-h1 = 8.5
+## Pipes: polyethylene ##
+r1 = 0.1 # Inner pipe inside radius [m]
+t1 = 0.01 # Inner pipe thickness [m]
+h1 = 8.5 # Inner pipe height [m]
 # Outer pipe inside radius [m]
-vol1 = π*r1^2*h1
-r2 = sqrt((vol1 + π*(r1+t1)^2*h1)/(h1*π)) # <= vol1 = vol2 = π*r2^2*h1-π*(r1+t1)^2*h1
-# Outer pipe thickness [m]
-t2 = 0.01
-# Outer pipe height [m]
-h2 = 9
-# Porosity: ratio of liquid volume to the total volume
-ε = 1
-# Pipe density [g/m3]
-ρp = 961000 
-# Pipe specific heat [J/(g °C)]
-cp = 2.9
-# Pipe thermal conductivity [W/(m °C)]
-λp = 0.54 
-# Pipe diffusion coefficient
-dp = λp/(ρp*cp)
+r2 = sqrt(r1^2 + (r1+t1)^2) # such that inflow volume == outflow volume [This is not strictly necessary, discuss this choice in thesis] 
+t2 = 0.01 # Outer pipe thickness [m]
+h2 = 9 # Outer pipe height [m]
+ε = 1 # Porosity: ratio of liquid volume to the total volume, [Anything similar in the literature?]
+ρp = 961000 # Pipe density [g/m3]
+cp = 2.9 # Pipe specific heat [J/(g °C)]
+λp = 0.54 # Pipe thermal conductivity [W/(m °C)]
+dp = λp/(ρp*cp) # Pipe diffusion coefficient
 
 # Fluid: water #########################################
-# Fluid density [g/m3]
-ρf = 997000
-# Fluid specific heat capacity [J/(g °C)]
-cf = 4.184 
-# Fluid thermal conductivity [W/(m °C)]
-λf = 0.6
-# Fluid diffusion coefficient
-df = λf/(ρf*cf)
-# Flow speed [m/s]
-uf = 0.01
+ρf = 997000 # Fluid density [g/m3]
+cf = 4.184 # Fluid specific heat capacity [J/(g °C)]
+λf = 0.6 # Fluid thermal conductivity [W/(m °C)]
+df = λf/(ρf*cf) # Fluid diffusion coefficient
+uf = 0.01 # Flow speed [m/s]
 vx0 = uf
 vy0 = 0
 vz0 = 0
-# Characteristic linear dimension (diameter of the pipe) [m]
-Lf = 2r1
-# Fluid dynamic viscosity at 25 °C [Pa⋅s]
-μf = 0.00089 # 0.0005465 at 50 °C
+Lf = 2r1 # Characteristic linear dimension (diameter of the pipe) [m]
+μf = 0.00089 # Fluid dynamic viscosity at 25 °C [Pa⋅s], 0.0005465 at 50 °C
+
 # Reynolds number
 Re = ρf*uf*Lf/μf
 
@@ -86,27 +61,19 @@ Re = ρf*uf*Lf/μf
 #     https://en.wikipedia.org/wiki/Numerical_solution_of_the_convection%E2%80%93diffusion_equation
 
 
-# Numerical parameters #########################################################
+## Numerical parameters ##
 
 # Geometric distances [m]
 xx = 100
 yy = 100
 zz = h2+1
 
-# dx, dy, dz [m]
-dx = 1
-dy = 1
-dz = 0.125
+dx = 1 # [m]
+dy = 1 # [m]
+dz = 0.125 # [m]
 rx = 0:dx:xx
 ry = 0:dy:yy
 rz = 0:dz:zz
-
-# well position array_result: px, py
-px = [25, 50, 75]
-py = [25, 50, 75]
-
-# Number of wells
-mm = length(px)
 
 # dt using stability condition (check this)
 dtd = (1/(2*maximum([dr,dp,df]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
@@ -130,8 +97,8 @@ hh2 = round(Int,h2/dz)
 ϕ2 = ones(ii,jj,kk)
 ϕ1 = ones(ii,jj,kk)
 
-# Initial and boundary conditions #############################################
-function init(px, py)
+## Initial and boundary conditions ##
+function init(px, py, ϕ1, ϕ2)
     d = zeros(ii,jj,kk)
     for k in 1:kk
         zk = k*dz
@@ -141,13 +108,14 @@ function init(px, py)
                 xi = i*dx
                 # Rock
                 d[i,j,k] = dr
-                ϕ2[i,j,k] = ϕ0(zk)
+                ϕ2[i,j,k] = ϕ0(zk) 
                 # Well
                 for (idx0, idx1) in zip(px, py)
-                    r = norm([xi,yj]-[idx0,idx1]) # dist from point to well
-                    if r < r2  # inside inner pipe
-                        d[i,j,k] = 0 # not relevent, well is modelled as a Dirichlet boundary
-                        ϕ2[i,j,k] = ϕs
+                    r = norm([xi,yj]-[idx0,idx1]) 
+                    if r < r2  # inside the well
+                        d[i,j,k] = 0 # Dirichlet boundary
+                        ϕ2[i,j,k] = ϕ0(zk)
+                        break
                     end
                 end
             end
@@ -156,12 +124,8 @@ function init(px, py)
     ϕ1 .= ϕ2
 end
 
-init(px, py)
-
-# Simulation ##################################################################
-
 # Solve eq. system
-function updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
+function updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt,source=0.0)
     @threads for k = 2:kk-1
         for j = 2:jj-1
             for i = 2:ii-1
@@ -173,8 +137,6 @@ function updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
                             -(d[i,j,k]+d[i,j-1,k])/2*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy)/dy
                         +((d[i,j,k+1]+d[i,j,k])/2*(ϕ1[i,j,k+1]-ϕ1[i,j,k])/dz
                             -(d[i,j,k]+d[i,j,k-1])/2*(ϕ1[i,j,k]-ϕ1[i,j,k-1])/dz)/dz)
-                    # Source term
-                    source = 0.0
                     # Update temperature
                     ϕ2[i,j,k] = (diff+source)*dt+ϕ1[i,j,k]
                 end
@@ -193,7 +155,17 @@ function updateϕ_boundaries!(ϕ,ii,jj,kk,dx,dy,dz)
 end
 
 # Run simulation
-function run_array_simulation()
+"""
+    total_energy(position_array, time)
+    Return the total amount of heat energy produced by the array of wells 
+    at positions `position_array` for a specified period of time `time`
+"""
+function run_array_simulation(position_array::AbstractArray{Float64, 2}, time_elapsed::Int)
+    # position_array = [[x1, x2, ...], [y1, y2, ...]]
+    # time = time in seconds
+    px = position_array[1]
+    py = position_array[2]
+    init(px, py)
     for t = 0:2:tt
         # Update ϕ
         updateϕ_domain!(ϕ2,ϕ1,d,dx,dy,dz,dt)
@@ -210,3 +182,15 @@ function run_array_simulation()
     end
 end
 
+
+# Well Positions Array i.e each position is (px[i], py[i])
+px = [25, 50, 75]
+py = [25, 50, 75]
+
+run_array_simulation([px, py], sim_time)
+
+
+
+## TODO ##
+# - Modify the code to model interference in the well array and compute the total heat energy output
+# - 
