@@ -8,3 +8,6 @@ array/
 plots/
 .pyvenv/
 .DS_Store
+Published/
+./images/
+./jl_plots/
