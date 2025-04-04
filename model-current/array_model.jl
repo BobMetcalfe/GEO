@@ -110,7 +110,7 @@ end
 
 # Earth surface temperature (K)
 ϕs = 283.15
-# Geothermal gradient (K/km). 10.1016/j.energy.2019.05.228
+# Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228
 gg = 3/100
 # Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086
 ϕ0(z) = ϕs+gg*z
@@ -165,8 +165,8 @@ Cc = (π/4)*(dci^2*ρf*Cf)
 # Heat extraction rate Q (W)
 Q = 100_000
 # DBHE positions
-xs = [5, 15, 25]
-ys = [5, 15, 25]
+xs = [5]
+ys = [5]
 # Number of DBHEs
 mm = length(xs)
 # Get DBHE index
@@ -186,14 +186,14 @@ end
 sim_time = 3_960_000 # 1100 hours
 
 # Geometry distances (m)
-xx = 30
-yy = 30
-zz = dl1+dl2+dl3+dl4+10
+xx = 10
+yy = 10
+zz = dl1+dl2+dl3+dl4+30
 
 # dx, dy, dz (m)
 dx = dao
 dy = dao
-dz = 20
+dz = 40
 rx = 0:dx:xx
 ry = 0:dy:yy
 rz = 0:dz:zz
@@ -202,7 +202,7 @@ rz = 0:dz:zz
 dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
-dt = dtd/10
+dt = dtd/10000
 println("dt:$dt")
 
 # No. of time iterations
@@ -223,18 +223,18 @@ dd2 = round(Int,depth/dz)
 # Initial and boundary conditions ##############################################
 
 # Temperature at the center of the DBHEs. 1D model.
-ϕc2 = ones(mm,kk)
-ϕc1 = ones(mm,kk)
+ϕc2 = ones(mm,kk)*ϕs
+ϕc1 = ones(mm,kk)*ϕs
 # Temperature at the annulus of the DBHEs. 1D model.
-ϕa2 = ones(mm,kk)
-ϕa1 = ones(mm,kk)
+ϕa2 = ones(mm,kk)*ϕs
+ϕa1 = ones(mm,kk)*ϕs
 # Temperature at the DBHE wall. 1D model.
-ϕbw = ones(mm,kk)
+ϕbw = ones(mm,kk)*ϕs
 # Heat flux at the DBHE wall. 1D model.
-qbw = ones(mm,kk)
+qbw = ones(mm,kk)*ϕs
 # Ground temperature. 3D model.
-ϕ2 = ones(ii,jj,kk)
-ϕ1 = ones(ii,jj,kk)
+ϕ2 = ones(ii,jj,kk)*ϕs
+ϕ1 = ones(ii,jj,kk)*ϕs
 # Diffusion coefficient
 D = zeros(ii,jj,kk)
 for k in 1:kk
@@ -266,17 +266,18 @@ save(path,"diff_coeff",D,rx,ry,rz,0)
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
-        ϕc2[1] = ϕa1[1]-Q/mfr*Cf # Alternative: use values from Fig 7.
+        ϕc2[1] = ϕa1[1]-Q/(mfr*Cf) # Alternative: use values from Fig 7.
         for k in 2:kk-1
             # Fluid temperature in the center of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
-            conv = -mfr*Cf*(ϕa1[m,k+1]-ϕa1[m,k-1])/2dz
+            conv = -mfr*Cf*(ϕa1[m,k+1]-ϕa1[m,k-1])/(2dz)
             ϕa2[k] = (diff+conv)*dt/Ca+ϕa1[m,k]
             # Fluid temperature in the annulus of the well
             diff = (ϕa1[m,k]-ϕc1[m,k])/Rac
-            conv = -mfr*Cf*(ϕc1[m,k+1]-ϕc1[m,k-1])/2dz
+            conv = -mfr*Cf*(ϕc1[m,k+1]-ϕc1[m,k-1])/(2dz)
             ϕc2[k] = (diff+conv)*dt/Cc+ϕc1[m,k]
         end
+        ϕa2[kk] = ϕa2[kk-1]
         ϕc2[kk] = ϕa2[kk]
     end
 end
@@ -357,8 +358,12 @@ for t = 0:2:tt
     update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # ϕ1,ϕ2
     
     # Save ϕ
-    if t % 10 == 0
-        println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, bottom temp:$(round(ϕ2[ii÷2,jj÷2,kk-1],digits=4)-273.15)°C")
+    if t % 1 == 0
+        println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, bottom temp:$(round(ϕ1[ii÷2,jj÷2,kk-1],digits=4)-273.15)°C")
+        plot(ϕa1[1,:].-273.15, label="Fluid temperature at DBHE annulus [C].")
+        plot!(ϕc1[1,:].-273.15, label="Fluid temperature at DBHE center [C].")
+        plot!(ylims=(0, 100))
+        savefig("$path/temp-dbhe2-$t.png")
         #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
         #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
         #save(path,"dbhe_center_temp",ϕc2,rx,ry,rz,t)
