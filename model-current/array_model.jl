@@ -31,7 +31,10 @@ mkpath(path)
 #     Temperature at the DBHE wall, ϕbw. 
 #         ϕbw = computed by the 3D model, using q as input.
 #
-# Reference: 10.1016/j.renene.2021.07.086
+# References:
+#    10.1016/j.renene.2024.121963
+#    10.1016/j.renene.2021.07.086
+#    10.1016/j.energy.2019.05.228
 #
 ################################################################################
 # DBHE array model #############################################################
@@ -41,7 +44,8 @@ mkpath(path)
 #
 ################################################################################
 
-# Geological parameters ########################################################
+
+# Geological parameters (10.1016/j.renene.2021.07.086) #########################
 
 # Layer 1: Clay
 # Length (m)
@@ -59,11 +63,11 @@ D1 = kl1/(ρl1*Cl1)
 # Length (m)
 dl2 = 562
 # Thermal conductivity (W/m.K)
-kl2 = 1.8
+kl2 = 2.6
 # Density (kg/m3)
-ρl2 = 1780
+ρl2 = 2030
 # Speciﬁc heat capacity (J/kg.K)
-Cl2 = 1379
+Cl2 = 1450
 # Diffusion coefficient
 D2 = kl2/(ρl2*Cl2)
 
@@ -71,11 +75,11 @@ D2 = kl2/(ρl2*Cl2)
 # Length (m)
 dl3 = 562
 # Thermal conductivity (W/m.K)
-kl3 = 1.8
+kl3 = 3.5
 # Density (kg/m3)
-ρl3 = 1780
+ρl3 = 1510
 # Speciﬁc heat capacity (J/kg.K)
-Cl3 = 1379
+Cl3 = 1300
 # Diffusion coefficient
 D3 = kl3/(ρl3*Cl3)
 
@@ -83,76 +87,79 @@ D3 = kl3/(ρl3*Cl3)
 # Length (m)
 dl4 = 1090
 # Thermal conductivity (W/m.K)
-kl4 = 1.8
+kl4 = 5.3
 # Density (kg/m3)
-ρl4 = 1780
+ρl4 = 2600
 # Speciﬁc heat capacity (J/kg.K)
-Cl4 = 1379
+Cl4 = 878
 # Diffusion coefficient
 D4 = kl4/(ρl4*Cl4)
 
 # Diffusion coefficient
 function diff_coeff(z)
-    if z < dl1 return D1
-    elseif z < dl2 return D2
-    elseif z < dl3 return D3
-    else return D4 end
+    if z < dl1 
+        return D1
+    elseif z < dl1+dl2
+        return D2
+    elseif z < dl1+dl2+dl3
+        return D3
+    else 
+        return D4
+    end
 end
 
 # Earth surface temperature (K)
-ϕs = 293.15
+ϕs = 283.15
 # Geothermal gradient (K/km). 10.1016/j.energy.2019.05.228
 gg = 3/100
-# Ground temperature as a function of depth (K)
+# Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086
 ϕ0(z) = ϕs+gg*z
 
 # DBHE parameters ##############################################################
 
-# Borehole depth (m)
+# Borehole depth (m). 10.1016/j.renene.2021.07.086.
 depth = 2000
-# Inner center pipe speciﬁcations x thickness (m): 0.125 x 0.0114
+# Inner center pipe speciﬁcations x thickness (m): 0.125 x 0.0114. 10.1016/j.renene.2021.07.086.
 dco = 0.125
 dci = dco-2*0.0114
-# Outer annulus pipe speciﬁcations x thickness (m): 0.1937 x 0.00833
+# Outer annulus pipe speciﬁcations x thickness (m): 0.1937 x 0.00833. 10.1016/j.renene.2021.07.086.
 dao = 0.1937
 dai = dao-2*0.00833
-# Thermal conductivity of center pipe (W/m.K)
+# Thermal conductivity of center pipe (W/m.K). 10.1016/j.renene.2021.07.086
 kc = 0.4
-# Thermal conductivity of annulus pipe (W/m.K)
+# Thermal conductivity of annulus pipe (W/m.K).  10.1016/j.renene.2021.07.086.
 ka = 41
 # Thermal conductivity of water (W/m.K)
 kf = 0.618
-# Speciﬁc heat capacity of water (J/kg.K)
-Cf = 4174
-# Thermal conductivity of grout (W/m.K)
+# Thermal conductivity of grout (W/m.K). 10.1016/j.renene.2021.07.086.
 kg = 1.5
-# Ground surface temperature (C)
-ϕs = 10
-# Water density (kg/m³). 10.1016/j.renene.2024.121963
-ρf = 998
-# Water specific heat capacity (J/(kg⋅K)). 10.1016/j.renene.2024.121963
-Cf = 4190
-# Pipe density (kg/m³)
-ρp = 2190 # missing value
+# Speciﬁc heat capacity of water (J/kg.K). 10.1016/j.renene.2021.07.086.
+Cf = 4174
 # Pipe specific heat capacity (J/(kg⋅K))
-Cp = 1735 # missing value
-# Grout density (kg/m³). 10.1016/j.renene.2024.121963
-ρg = 2190
+Cp = 1735 # TODO:missing value
 # Grout specific heat capacity (J/(kg⋅K)). 10.1016/j.renene.2024.121963
 Cg = 1735 
+# Ground surface temperature (K). 10.1016/j.renene.2021.07.086.
+ϕs = 283.15
+# Water density (kg/m³). 10.1016/j.renene.2024.121963.
+ρf = 998
+# Pipe density (kg/m³)
+ρp = 2190 # TODO:missing value
+# Grout density (kg/m³). 10.1016/j.renene.2024.121963
+ρg = 2190
 # Mass flow rate (kg/s). 10.1016/j.renene.2024.121963
 mfr = 4.88
-# Thermal resistance between center and annulus pipe ((K m)/W). 10.1016/j.energy.2019.05.228
+# Thermal resistance between center and annulus pipe ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rac = 0.08
 # Thermal resistance between annulus and borehole wall ((K m)/W). 10.1016/j.energy.2019.05.228
 Rb = 0.025
 # Thermal resistance between the borehole and the surroudning soil ((K m)/W). 10.1016/j.energy.2019.05.228
 Rs = 0.01
-# Thermal capacity of circulating ﬂuid in the annulus, Ca. 10.1016/j.renene.2024.121963
+# Thermal capacity of circulating ﬂuid in the annulus, Ca. 10.1016/j.renene.2024.121963.
 Ca = (π/4)*(dai^2-dco^2)*ρf*Cf
     +(π/4)*(dao^2-dai^2)*ρp*Cp
     #+(π/4)*(db^2-dao^2)*ρg*Cg
-# Thermal capacity of circulating ﬂuid in the center, Cc. 10.1016/j.renene.2024.121963
+# Thermal capacity of circulating ﬂuid in the center, Cc. 10.1016/j.renene.2024.121963.
 Cc = (π/4)*(dci^2*ρf*Cf)
     +(π/4)*(dco^2-dci^2)*ρp*Cp
 # Heat extraction rate Q (W)
@@ -162,7 +169,7 @@ xs = [5, 15, 25]
 ys = [5, 15, 25]
 # Number of DBHEs
 mm = length(xs)
-
+# Get DBHE index
 function dbhe_index(x,y)
     for (m,(xb,yb)) in enumerate(zip(xs,ys))
         r = norm([x,y]-[xb,yb]) # Distance to DBHE center
