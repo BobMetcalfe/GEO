@@ -110,9 +110,9 @@ end
 
 # Earth surface temperature (K)
 ϕs = 283.15
-# Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228
+# Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228.
 gg = 3/100
-# Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086
+# Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086.
 ϕ0(z) = ϕs+gg*z
 
 # DBHE parameters ##############################################################
@@ -125,7 +125,7 @@ dci = dco-2*0.0114
 # Outer annulus pipe speciﬁcations x thickness (m): 0.1937 x 0.00833. 10.1016/j.renene.2021.07.086.
 dao = 0.1937
 dai = dao-2*0.00833
-# Thermal conductivity of center pipe (W/m.K). 10.1016/j.renene.2021.07.086
+# Thermal conductivity of center pipe (W/m.K). 10.1016/j.renene.2021.07.086.
 kc = 0.4
 # Thermal conductivity of annulus pipe (W/m.K).  10.1016/j.renene.2021.07.086.
 ka = 41
@@ -137,7 +137,7 @@ kg = 1.5
 Cf = 4174
 # Pipe specific heat capacity (J/(kg⋅K))
 Cp = 1735 # TODO:missing value
-# Grout specific heat capacity (J/(kg⋅K)). 10.1016/j.renene.2024.121963
+# Grout specific heat capacity (J/(kg⋅K)). 10.1016/j.renene.2024.121963.
 Cg = 1735 
 # Ground surface temperature (K). 10.1016/j.renene.2021.07.086.
 ϕs = 283.15
@@ -145,15 +145,15 @@ Cg = 1735
 ρf = 998
 # Pipe density (kg/m³)
 ρp = 2190 # TODO:missing value
-# Grout density (kg/m³). 10.1016/j.renene.2024.121963
+# Grout density (kg/m³). 10.1016/j.renene.2024.121963.
 ρg = 2190
-# Mass flow rate (kg/s). 10.1016/j.renene.2024.121963
+# Mass flow rate (kg/s). 10.1016/j.renene.2024.121963.
 mfr = 4.88
 # Thermal resistance between center and annulus pipe ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rac = 0.08
-# Thermal resistance between annulus and borehole wall ((K m)/W). 10.1016/j.energy.2019.05.228
+# Thermal resistance between annulus and borehole wall ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rb = 0.025
-# Thermal resistance between the borehole and the surroudning soil ((K m)/W). 10.1016/j.energy.2019.05.228
+# Thermal resistance between the borehole and the surroudning soil ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rs = 0.01
 # Thermal capacity of circulating ﬂuid in the annulus, Ca. 10.1016/j.renene.2024.121963.
 Ca = (π/4)*(dai^2-dco^2)*ρf*Cf
@@ -202,7 +202,7 @@ rz = 0:dz:zz
 dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
-dt = dtd/10000
+dt = dtd/100_000
 println("dt:$dt")
 
 # No. of time iterations
@@ -220,53 +220,13 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 dd1 = round(Int,depth/dz)
 dd2 = round(Int,depth/dz)
 
-# Initial and boundary conditions ##############################################
-
-# Temperature at the center of the DBHEs. 1D model.
-ϕc2 = ones(mm,kk)*ϕs
-ϕc1 = ones(mm,kk)*ϕs
-# Temperature at the annulus of the DBHEs. 1D model.
-ϕa2 = ones(mm,kk)*ϕs
-ϕa1 = ones(mm,kk)*ϕs
-# Temperature at the DBHE wall. 1D model.
-ϕbw = ones(mm,kk)*ϕs
-# Heat flux at the DBHE wall. 1D model.
-qbw = ones(mm,kk)*ϕs
-# Ground temperature. 3D model.
-ϕ2 = ones(ii,jj,kk)*ϕs
-ϕ1 = ones(ii,jj,kk)*ϕs
-# Diffusion coefficient
-D = zeros(ii,jj,kk)
-for k in 1:kk
-    zk = k*dz
-    for j in 1:jj
-        yj = j*dy
-        for i in 1:ii
-            xi = i*dx
-            # Ground
-            D[i,j,k] = diff_coeff(zk)
-            ϕ2[i,j,k] = ϕ0(zk)
-            # DBHE
-            for (xb, yb) in zip(xs, ys)
-                r = norm([xi,yj]-[xb,yb]) # Distance to DBHE center
-                if r < dao/2
-                    D[i,j,k] = 0
-                    ϕ2[i,j,k] = ϕs
-                end
-            end
-        end
-    end
-end
-ϕ1 .= ϕ2
-save(path,"diff_coeff",D,rx,ry,rz,0)
-
 
 # Update functions #############################################################
 
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
-        ϕc2[1] = ϕa1[1]-Q/(mfr*Cf) # Alternative: use values from Fig 7.
+        ϕa2[1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
         for k in 2:kk-1
             # Fluid temperature in the center of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
@@ -279,14 +239,15 @@ function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,
         end
         ϕa2[kk] = ϕa2[kk-1]
         ϕc2[kk] = ϕa2[kk]
+        ϕc2[1] = ϕc2[2]
     end
 end
 
-# Update heat flux at the wall of each DBHE, q. 1D model.
+# Update heat flux at the wall of each DBHE, qbw. 1D model.
 function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kk,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 2:kk-1
-            qbw[m,k] = ϕa[m,k]*ϕbw[m,k]/(Rb+Rs)
+            qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.0001 # TODO:check
         end
     end
 end
@@ -294,10 +255,11 @@ end
 # Update temperature at the borehole walls, ϕbw. 1D model.
 # q = ϕa*ϕbw/(Rb+Rs)
 # q = -k * grad(ϕ)
-function update_ϕ_dbhe_wall!(ϕbw,ϕ,q,mm,kk,dz,dt)
+function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kk,dx,dy,dz,dt)
+    delta = (dx+dy)/2
     for m in 1:mm
         for k in 2:kk-1
-            ϕbw[m,k] = -2*dx*q[m,k]/k+ϕ[k]
+            ϕbw[m,k] = -delta*qbw[m,k]/ka+ϕ[k]
         end
     end
 end
@@ -339,31 +301,76 @@ function update_ϕ_ground_bound!(ϕ,ii,jj,kk,dx,dy,dz)
 end
 
 
+# Initial and boundary conditions ##############################################
+
+# Temperature at the center of the DBHEs. 1D model.
+ϕc2 = ones(mm,kk)*ϕs
+ϕc1 = ones(mm,kk)*ϕs
+# Temperature at the annulus of the DBHEs. 1D model.
+ϕa2 = ones(mm,kk)*ϕs
+ϕa1 = ones(mm,kk)*ϕs
+# Temperature at the DBHE wall. 1D model.
+ϕbw = ones(mm,kk)*ϕs
+# Heat flux at the DBHE wall. 1D model.
+qbw = ones(mm,kk)*ϕs
+update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kk,dz,dt,Rb,Rs) # qbw
+
+# Ground temperature. 3D model.
+ϕ2 = ones(ii,jj,kk)*ϕs
+ϕ1 = ones(ii,jj,kk)*ϕs
+# Diffusion coefficient
+D = zeros(ii,jj,kk)
+for k in 1:kk
+    zk = k*dz
+    for j in 1:jj
+        yj = j*dy
+        for i in 1:ii
+            xi = i*dx
+            # Ground
+            D[i,j,k] = diff_coeff(zk)
+            ϕ2[i,j,k] = ϕ0(zk)
+            # DBHE
+            for (xb, yb) in zip(xs, ys)
+                r = norm([xi,yj]-[xb,yb]) # Distance to DBHE center
+                if r < dao/2
+                    D[i,j,k] = 0
+                    ϕ2[i,j,k] = ϕs
+                end
+            end
+        end
+    end
+end
+ϕ1 .= ϕ2
+save(path,"diff_coeff",D,rx,ry,rz,0)
+
+
 # Simulation ##################################################################
 
 # Run simulation
 for t = 0:2:tt
     # Update ϕ
-    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # ϕa2,ϕa1,ϕc2,ϕc1
-    update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kk,dz,dt,Rb,Rs) # qbw
-    update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,mm,kk,dz,dt) # ϕbw
-    update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # ϕ2,ϕ1
-    update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz) # ϕ2,ϕ1
+    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
+    update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kk,dz,dt,Rb,Rs) # 1D: qbw
+    update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,mm,kk,dx,dy,dz,dt) # 1D: ϕbw
+    update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ2,ϕ1
+    update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz) # 3D: ϕ2,ϕ1
     
     # Update ϕ
-    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # ϕa1,ϕa2,ϕc1,ϕc2
-    update_q_dbhe_wall!(qbw,ϕa1,ϕbw,mm,kk,dz,dt,Rb,Rs) # qbw
-    update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,mm,kk,dz,dt) # ϕbw
-    update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # ϕ1,ϕ2
-    update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # ϕ1,ϕ2
+    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
+    update_q_dbhe_wall!(qbw,ϕa1,ϕbw,mm,kk,dz,dt,Rb,Rs) # 1D: qbw
+    update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,mm,kk,dx,dy,dz,dt) # 1D: ϕbw
+    update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ1,ϕ2
+    update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # 3D: ϕ1,ϕ2
     
     # Save ϕ
-    if t % 1 == 0
-        println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, bottom temp:$(round(ϕ1[ii÷2,jj÷2,kk-1],digits=4)-273.15)°C")
-        plot(ϕa1[1,:].-273.15, label="Fluid temperature at DBHE annulus [C].")
-        plot!(ϕc1[1,:].-273.15, label="Fluid temperature at DBHE center [C].")
-        plot!(ylims=(0, 100))
-        savefig("$path/temp-dbhe2-$t.png")
+    if t % 1000 == 0
+        println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, " *
+                "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
+                "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
+        plot(ϕa1[1,:].-273.15, label="Fluid temperature at DBHE annulus [°C].")
+        plot!(ϕc1[1,:].-273.15, label="Fluid temperature at DBHE center [°C].")
+        plot!(ylims=(5, 40))
+        savefig("$path/temp-dbhe-$t.png")
         #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
         #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
         #save(path,"dbhe_center_temp",ϕc2,rx,ry,rz,t)
