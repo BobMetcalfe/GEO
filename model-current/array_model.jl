@@ -118,7 +118,7 @@ gg = 3/100
 # DBHE parameters ##############################################################
 
 # Borehole depth (m). 10.1016/j.renene.2021.07.086.
-depth = 2000
+dbhe_depth = 2000
 # Inner center pipe speciﬁcations x thickness (m): 0.125 x 0.0114. 10.1016/j.renene.2021.07.086.
 dco = 0.125
 dci = dco-2*0.0114
@@ -189,6 +189,7 @@ sim_time = 3_960_000 # 1100 hours
 xx = 10
 yy = 10
 zz = dl1+dl2+dl3+dl4+30
+zzb = dbhe_depth
 
 # dx, dy, dz (m)
 dx = dao
@@ -197,6 +198,7 @@ dz = 40
 rx = 0:dx:xx
 ry = 0:dy:yy
 rz = 0:dz:zz
+rzb = 0:dz:zzb
 
 # dt using stability condition (check this)
 dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
@@ -213,21 +215,18 @@ println("tt:$tt")
 ii = round(Int,xx/dx)
 jj = round(Int,yy/dy)
 kk = round(Int,zz/dz)
+kkb = round(Int,zzb/dz+1)
 nn = ii*jj*kk
 println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
-
-# No. of depth nodes
-dd1 = round(Int,depth/dz)
-dd2 = round(Int,depth/dz)
 
 
 # Update functions #############################################################
 
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
-function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
+function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
         ϕa2[1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
-        for k in 2:kk-1
+        for k in 2:kkb-1
             # Fluid temperature in the center of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
             conv = -mfr*Cf*(ϕa1[m,k+1]-ϕa1[m,k-1])/(2dz)
@@ -237,16 +236,16 @@ function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,
             conv = -mfr*Cf*(ϕc1[m,k+1]-ϕc1[m,k-1])/(2dz)
             ϕc2[k] = (diff+conv)*dt/Cc+ϕc1[m,k]
         end
-        ϕa2[kk] = ϕa2[kk-1]
-        ϕc2[kk] = ϕa2[kk]
+        ϕa2[kkb] = ϕa2[kkb-1]
+        ϕc2[kkb] = ϕa2[kkb]
         ϕc2[1] = ϕc2[2]
     end
 end
 
 # Update heat flux at the wall of each DBHE, qbw. 1D model.
-function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kk,dz,dt,Rb,Rs)
+function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
-        for k in 2:kk-1
+        for k in 1:kkb
             qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.0001 # TODO:check
         end
     end
@@ -255,10 +254,10 @@ end
 # Update temperature at the borehole walls, ϕbw. 1D model.
 # q = ϕa*ϕbw/(Rb+Rs)
 # q = -k * grad(ϕ)
-function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kk,dx,dy,dz,dt)
+function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
     delta = (dx+dy)/2
     for m in 1:mm
-        for k in 2:kk-1
+        for k in 1:kkb
             ϕbw[m,k] = -delta*qbw[m,k]/ka+ϕ[k]
         end
     end
@@ -298,22 +297,23 @@ function update_ϕ_ground_bound!(ϕ,ii,jj,kk,dx,dy,dz)
     ϕ[2:ii-1,jj,2:kk-1] .= ϕ[2:ii-1,jj-1,2:kk-1]
     ϕ[2:ii-1,2:jj-1,1] .= ϕ[2:ii-1,2:jj-1,2]
     ϕ[2:ii-1,2:jj-1,kk] .= ϕ0(kk*dz)
+    nothing
 end
 
 
 # Initial and boundary conditions ##############################################
 
 # Temperature at the center of the DBHEs. 1D model.
-ϕc2 = ones(mm,kk)*ϕs
-ϕc1 = ones(mm,kk)*ϕs
+ϕc2 = ones(mm,kkb)*ϕs
+ϕc1 = ones(mm,kkb)*ϕs
 # Temperature at the annulus of the DBHEs. 1D model.
-ϕa2 = ones(mm,kk)*ϕs
-ϕa1 = ones(mm,kk)*ϕs
+ϕa2 = ones(mm,kkb)*ϕs
+ϕa1 = ones(mm,kkb)*ϕs
 # Temperature at the DBHE wall. 1D model.
-ϕbw = ones(mm,kk)*ϕs
+ϕbw = ones(mm,kkb)*ϕs
 # Heat flux at the DBHE wall. 1D model.
-qbw = ones(mm,kk)*ϕs
-update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kk,dz,dt,Rb,Rs) # qbw
+qbw = ones(mm,kkb)*ϕs
+update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # qbw
 
 # Ground temperature. 3D model.
 ϕ2 = ones(ii,jj,kk)*ϕs
@@ -330,9 +330,9 @@ for k in 1:kk
             D[i,j,k] = diff_coeff(zk)
             ϕ2[i,j,k] = ϕ0(zk)
             # DBHE
-            for (xb, yb) in zip(xs, ys)
+            for (xb,yb) in zip(xs,ys)
                 r = norm([xi,yj]-[xb,yb]) # Distance to DBHE center
-                if r < dao/2
+                if r<=dao/2 && zk<=dbhe_depth
                     D[i,j,k] = 0
                     ϕ2[i,j,k] = ϕs
                 end
@@ -349,16 +349,16 @@ save(path,"diff_coeff",D,rx,ry,rz,0)
 # Run simulation
 for t = 0:2:tt
     # Update ϕ
-    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
-    update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kk,dz,dt,Rb,Rs) # 1D: qbw
-    update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,mm,kk,dx,dy,dz,dt) # 1D: ϕbw
+    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
+    update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
+    update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,mm,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ2,ϕ1
     update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz) # 3D: ϕ2,ϕ1
     
     # Update ϕ
-    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kk,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
-    update_q_dbhe_wall!(qbw,ϕa1,ϕbw,mm,kk,dz,dt,Rb,Rs) # 1D: qbw
-    update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,mm,kk,dx,dy,dz,dt) # 1D: ϕbw
+    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
+    update_q_dbhe_wall!(qbw,ϕa1,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
+    update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,mm,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ1,ϕ2
     update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # 3D: ϕ1,ϕ2
     
@@ -367,9 +367,10 @@ for t = 0:2:tt
         println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, " *
                 "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
                 "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
-        plot(ϕa1[1,:].-273.15, label="Fluid temperature at DBHE annulus [°C].")
-        plot!(ϕc1[1,:].-273.15, label="Fluid temperature at DBHE center [°C].")
-        plot!(ylims=(5, 40))
+        plot(rzb, ϕa1[1,:].-273.15, label="Fluid temperature at DBHE annulus [°C].")
+        plot!(rzb, ϕc1[1,:].-273.15, label="Fluid temperature at DBHE center [°C].")
+        plot!(rzb, ϕbw[1,:].-273.15, label="Temperature at DBHE wall [°C].")
+        plot!(xlabel="depth [m]", ylabel="Temperature [°C]", ylims=(5, 15))
         savefig("$path/temp-dbhe-$t.png")
         #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
         #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
