@@ -18,7 +18,7 @@ mkpath(path)
 # Equations for each DBHE:
 # 
 #     1D element representation of the center fluid temperature, ϕc.
-#         Cc*dϕc/dt=(ϕa-ϕc)/Rac-m*Cf*dϕc/dz
+#         Cc*dϕc/dt=(ϕa-ϕc)/Rac+m*Cf*dϕc/dz
 #
 #     1D element representation of the annulus fluid temperature, ϕa.
 #         Ca*dϕa/dt=(ϕc-ϕa)/Rac+(ϕbw-ϕa)/Rb-m*Cf*dϕa/dz
@@ -158,7 +158,7 @@ Rs = 0.01
 # Thermal capacity of circulating ﬂuid in the annulus, Ca. 10.1016/j.renene.2024.121963.
 Ca = (π/4)*(dai^2-dco^2)*ρf*Cf
     +(π/4)*(dao^2-dai^2)*ρp*Cp
-    #+(π/4)*(db^2-dao^2)*ρg*Cg
+#    +(π/4)*(db^2-dao^2)*ρg*Cg
 # Thermal capacity of circulating ﬂuid in the center, Cc. 10.1016/j.renene.2024.121963.
 Cc = (π/4)*(dci^2*ρf*Cf)
     +(π/4)*(dco^2-dci^2)*ρp*Cp
@@ -177,6 +177,9 @@ function dbhe_index(x,y)
             return m
         end
     end
+end
+function dbhe_indexes(m)
+    return 5, 5 # TODO:
 end
 
 # Numerical parameters #########################################################
@@ -204,7 +207,8 @@ rzb = 0:dz:zzb
 dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dz^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
-dt = 0.01
+#dt = 0.01
+dt=0.1
 println("dt:$dt")
 
 # No. of time iterations
@@ -225,20 +229,20 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
-        ϕa2[1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
+        ϕa2[m,1] = 283.15 #ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
         for k in 2:kkb-1
-            # Fluid temperature in the center of the well
-            diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
-            conv = -mfr*Cf*(ϕa1[m,k+1]-ϕa1[m,k-1])/(2dz)
-            ϕa2[k] = (diff+conv)*dt/Ca+ϕa1[m,k]
             # Fluid temperature in the annulus of the well
+            diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
+            conv = -mfr*Cf*(ϕa1[m,k]-ϕa1[m,k-1])/dz
+            ϕa2[m,k] = (diff+conv)*dt/Ca+ϕa1[m,k]
+            # Fluid temperature in the center of the well
             diff = (ϕa1[m,k]-ϕc1[m,k])/Rac
-            conv = -mfr*Cf*(ϕc1[m,k+1]-ϕc1[m,k-1])/(2dz)
-            ϕc2[k] = (diff+conv)*dt/Cc+ϕc1[m,k]
+            conv = +mfr*Cf*(ϕc1[m,k+1]-ϕc1[m,k])/dz
+            ϕc2[m,k] = (diff+conv)*dt/Cc+ϕc1[m,k]
         end
-        ϕa2[kkb] = ϕa2[kkb-1]
-        ϕc2[kkb] = ϕa2[kkb]
-        ϕc2[1] = ϕc2[2]
+        ϕa2[m,kkb] = ϕa2[m,kkb-1]
+        ϕc2[m,kkb] = ϕa2[m,kkb]
+        ϕc2[m,1] = ϕc2[m,2]
     end
 end
 
@@ -246,7 +250,7 @@ end
 function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
-            qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.0001 # TODO:check
+            qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.001 # TODO:check
         end
     end
 end
@@ -257,8 +261,9 @@ end
 function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
     delta = (dx+dy)/2
     for m in 1:mm
+        i,j = dbhe_indexes(m)
         for k in 1:kkb
-            ϕbw[m,k] = -delta*qbw[m,k]/ka+ϕ[k]
+            ϕbw[m,k] = -delta*qbw[m,k]/ka+ϕ[i,j,k]
         end
     end
 end
@@ -304,20 +309,20 @@ end
 # Initial and boundary conditions ##############################################
 
 # Temperature at the center of the DBHEs. 1D model.
-ϕc2 = ones(mm,kkb)*ϕs
-ϕc1 = ones(mm,kkb)*ϕs
+ϕc2 = ones(mm,kkb).*ϕ0.(rzb)'
+ϕc1 = ones(mm,kkb).*ϕ0.(rzb)'
 # Temperature at the annulus of the DBHEs. 1D model.
-ϕa2 = ones(mm,kkb)*ϕs
-ϕa1 = ones(mm,kkb)*ϕs
+ϕa2 = ones(mm,kkb).*ϕ0.(rzb)'
+ϕa1 = ones(mm,kkb).*ϕ0.(rzb)'
 # Temperature at the DBHE wall. 1D model.
-ϕbw = ones(mm,kkb).*ϕ0.(rzb)
+ϕbw = ones(mm,kkb).*ϕ0.(rzb)'
 # Heat flux at the DBHE wall. 1D model.
-qbw = ones(mm,kkb)*ϕs
+qbw = zeros(mm,kkb)
 update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # qbw
 
 # Ground temperature. 3D model.
-ϕ2 = ones(ii,jj,kk)*ϕs
-ϕ1 = ones(ii,jj,kk)*ϕs
+ϕ2 = zeros(ii,jj,kk)
+ϕ1 = zeros(ii,jj,kk)
 # Diffusion coefficient
 D = zeros(ii,jj,kk)
 for k in 1:kk
@@ -334,7 +339,7 @@ for k in 1:kk
                 r = norm([xi,yj]-[xb,yb]) # Distance to DBHE center
                 if r<=dao/2 && zk<=dbhe_depth
                     D[i,j,k] = 0
-                    ϕ2[i,j,k] = ϕs
+                    ϕ2[i,j,k] = ϕ0(zk)
                 end
             end
         end
@@ -367,16 +372,13 @@ for t = 0:2:tt
         println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, " *
                 "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
                 "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
-        plot(rzb, ϕa1[1,:].-273.15, label="Temperature at DBHE annulus fluid [°C].")
-        plot!(rzb, ϕc1[1,:].-273.15, label="Temperature at DBHE center fluid [°C].")
-        plot!(rzb, ϕbw[1,:].-273.15, label="Temperature at DBHE wall [°C].")
-        plot!(xlabel="depth [m]", ylabel="Temperature [°C]", ylims=(5, 15))
-        savefig("$path/temp-dbhe-$t.png")
+        plot_ϕ(ϕa1,ϕc1,ϕbw,rzb,t)
         #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
         #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
         #save(path,"dbhe_center_temp",ϕc2,rx,ry,rz,t)
     end
 end
+
 
 # Validation ###################################################################
 
