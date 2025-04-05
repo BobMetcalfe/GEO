@@ -201,10 +201,10 @@ rz = 0:dz:zz
 rzb = 0:dz:zzb
 
 # dt using stability condition (check this)
-dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dy^2)^-1)
+dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dz^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
-dt = dtd/100_000
+dt = 0.01
 println("dt:$dt")
 
 # No. of time iterations
@@ -310,7 +310,7 @@ end
 ϕa2 = ones(mm,kkb)*ϕs
 ϕa1 = ones(mm,kkb)*ϕs
 # Temperature at the DBHE wall. 1D model.
-ϕbw = ones(mm,kkb)*ϕs
+ϕbw = ones(mm,kkb).*ϕ0.(rzb)
 # Heat flux at the DBHE wall. 1D model.
 qbw = ones(mm,kkb)*ϕs
 update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # qbw
@@ -367,8 +367,8 @@ for t = 0:2:tt
         println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, " *
                 "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
                 "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
-        plot(rzb, ϕa1[1,:].-273.15, label="Fluid temperature at DBHE annulus [°C].")
-        plot!(rzb, ϕc1[1,:].-273.15, label="Fluid temperature at DBHE center [°C].")
+        plot(rzb, ϕa1[1,:].-273.15, label="Temperature at DBHE annulus fluid [°C].")
+        plot!(rzb, ϕc1[1,:].-273.15, label="Temperature at DBHE center fluid [°C].")
         plot!(rzb, ϕbw[1,:].-273.15, label="Temperature at DBHE wall [°C].")
         plot!(xlabel="depth [m]", ylabel="Temperature [°C]", ylims=(5, 15))
         savefig("$path/temp-dbhe-$t.png")
