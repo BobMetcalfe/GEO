@@ -111,7 +111,7 @@ end
 # Earth surface temperature (K)
 ϕs = 283.15
 # Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228.
-gg = 3/100
+gg = 1/100
 # Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086.
 ϕ0(z) = ϕs+gg*z
 
@@ -208,12 +208,15 @@ dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dz^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
 #dt = 0.01
-dt=0.1
+dt=10
 println("dt:$dt")
 
 # No. of time iterations
-tt = round(Int,sim_time/dt) 
+tt = round(Int,sim_time/dt)
 println("tt:$tt")
+
+# Save step
+st = 1000
 
 # No. of spatial domain nodes
 ii = round(Int,xx/dx)
@@ -227,9 +230,9 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 # Update functions #############################################################
 
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
-function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
+function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
-        ϕa2[m,1] = 283.15 #ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
+        ϕa2[m,1] = ϕ_fluid_inlet(dt*nt,ϕin,tin) #283.15 #ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
@@ -348,31 +351,47 @@ end
 ϕ1 .= ϕ2
 save(path,"diff_coeff",D,rx,ry,rz,0)
 
+# Inlet water temperature. 10.1016/j.renene.2021.07.086.
+df = CSV.read("temp-vs-time.csv", DataFrame)
+tin = (df."time (h)")*3600 # s
+ϕin = df."water_temp (°C)".+273.15 # K
+function ϕ_fluid_inlet(t,ϕin,tin)
+    ind = maximum([findfirst(x->x>t,tin)-1, 1])
+    return ϕin[ind]
+end
+
+# Inlet water temperature. 10.1016/j.renene.2021.07.086.
+ϕout_pred = zeros(mm,ceil(Int,tt/st)+1)
+
+# Saved temperatures
+ts = collect(0:st*dt:tt*dt)
 
 # Simulation ##################################################################
 
 # Run simulation
-for t = 0:2:tt
+for nt = 0:2:tt
     # Update ϕ
-    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
+    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
     update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
     update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,mm,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ2,ϕ1
     update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz) # 3D: ϕ2,ϕ1
     
     # Update ϕ
-    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kkb,dz,dt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
+    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
     update_q_dbhe_wall!(qbw,ϕa1,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
     update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,mm,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ1,ϕ2
     update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # 3D: ϕ1,ϕ2
     
     # Save ϕ
-    if t % 1000 == 0
-        println("Iteration:$t, time:$(round(t*dt/60/60,digits=2))hs, " *
+    if nt % st == 0
+        println("Iteration:$nt, time:$(round(nt*dt/60/60,digits=2))hs, " *
                 "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
                 "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
-        plot_ϕ(ϕa1,ϕc1,ϕbw,rzb,t)
+        plot_ϕ(ϕa1,ϕc1,ϕbw,rzb,nt*dt)
+        
+        ϕout_pred[:,(nt÷st)+1]=ϕc1[:,1]
         #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
         #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
         #save(path,"dbhe_center_temp",ϕc2,rx,ry,rz,t)
@@ -382,12 +401,9 @@ end
 
 # Validation ###################################################################
 
-# Read the CSV file
-df = CSV.read("temp-vs-time.csv", DataFrame)
-
-# Comparison of inlet and outlet water temperature by measurement and simulation.
-# 10.1016/j.renene.2021.07.086
-t = df."time (h)"
-ϕf = df."water_temp (°C)"
-plot(t, ϕf)
+plot(tin/3600, ϕin.-273.15,
+     label="Inlet temperature [°C]")
+plot!(ts[1:300]/3600, ϕout_pred[1,:][1:300].-273.15,
+      label="Predicted outlet temperature [°C]")
+plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(10, 40))
 
