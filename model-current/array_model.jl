@@ -253,7 +253,7 @@ end
 function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
-            qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.001 # TODO:check
+            qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.0008 # TODO:check
         end
     end
 end
@@ -356,7 +356,7 @@ df = CSV.read("temp-vs-time.csv", DataFrame)
 tin = (df."time (h)")*3600 # s
 ϕin = df."water_temp (°C)".+273.15 # K
 function ϕ_fluid_inlet(t,ϕin,tin)
-    ind = maximum([findfirst(x->x>t,tin)-1, 1])
+    ind = maximum([findfirst(x->x>=t,tin)-1, 1])
     return ϕin[ind]
 end
 
@@ -403,7 +403,7 @@ end
 
 plot(tin/3600, ϕin.-273.15,
      label="Inlet temperature [°C]")
-plot!(ts[1:300]/3600, ϕout_pred[1,:][1:300].-273.15,
+plot!(ts[1:390]/3600, ϕout_pred[1,:][1:390].-273.15,
       label="Predicted outlet temperature [°C]")
-plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(10, 40))
-
+plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(5, 40))
+savefig("$path/inlet-oulet-temp.png")
