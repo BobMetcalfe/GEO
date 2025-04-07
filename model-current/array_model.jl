@@ -236,8 +236,8 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
         #ϕa2[m,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
-        #ϕa2[m,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
-        ϕa2[m,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        ϕa2[m,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        #ϕa2[m,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
@@ -284,8 +284,8 @@ function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
             #q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/delta
             #q4 = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/delta
             #qbw[m,k] = q1+q2+q3+q4 => ϕbw[m,k]
-            ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
-                       qbw[m,k]*delta/(4*ka)
+            #ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
+            #           qbw[m,k]*delta/(4*ka)
             
             # Approx. 2
             #ϕbw1 = qbw[m,k]*dx/ka+ϕ[i+1,j,k] # qbw[m,k] = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/dx
@@ -343,7 +343,6 @@ end
 # Temperature at the annulus of the DBHEs. 1D model.
 ϕa2 = ones(mm,kkb).*ϕ0.(rzb)'
 ϕa1 = ones(mm,kkb).*ϕ0.(rzb)'
-ϕa2[1] = ϕa1[1] = 297.15
 # Temperature at the DBHE wall. 1D model.
 ϕbw = ones(mm,kkb).*ϕ0.(rzb)'
 # Heat flux at the DBHE wall. 1D model.
@@ -448,6 +447,7 @@ end
 
 # Validation ###################################################################
 
+# Predicted Iinlet and outlet temperature vs measurements
 plot(ts/3600, get_ϕin.(ts).-273.15,
       label="Inlet temperature [°C]")
 scatter!(ts/3600, ϕin_pred[1,:].-273.15,
@@ -458,3 +458,12 @@ scatter!(ts/3600, ϕout_pred[1,:].-273.15,
       label="Predicted outlet temperature [°C]")
 plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(5, 40))
 savefig("$path/inlet-oulet-temp.png")
+
+# Ground temperature
+rzrev = reverse(-1*rz[1:end-1])
+@views ϕrev = reverse(ϕ1[ii÷2,:,:]'.-273.15, dims=1)
+heatmap(rx, rzrev, ϕrev, colorbar_title = "Temperature (°C)")
+contour!(rx, rzrev, ϕrev, linewidth = 1, linecolor = :black)
+contour!(xlabel="Distance [m]", ylabel="Depth [m]")
+savefig("$path/ground-temp.png")
+
