@@ -35,6 +35,7 @@ mkpath(path)
 #    10.1016/j.renene.2024.121963
 #    10.1016/j.renene.2021.07.086
 #    10.1016/j.energy.2019.05.228
+#    10.1016/j.renene.2021.01.036
 #
 ################################################################################
 # DBHE array model #############################################################
@@ -111,7 +112,7 @@ end
 # Earth surface temperature (K)
 ϕs = 283.15
 # Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228.
-gg = 1/100
+gg = 2/100
 # Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086.
 ϕ0(z) = ϕs+gg*z
 
@@ -165,7 +166,7 @@ Ca = (π/4)*(dai^2-dco^2)*ρf*Cf
 Cc = (π/4)*(dci^2*ρf*Cf)
     +(π/4)*(dco^2-dci^2)*ρp*Cp
 # Heat extraction rate Q (W)
-Q = 100_000
+Q = 300_000
 # DBHE positions
 xs = [5]
 ys = [5]
@@ -234,8 +235,9 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
-        ϕa2[m,1] = ϕ_fluid_inlet(dt*nt,ϕin,tin) # 10.1016/j.renene.2021.07.086.
-        #ϕa2[m,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        #ϕa2[m,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
+        #ϕa2[m,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        ϕa2[m,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
@@ -258,10 +260,11 @@ end
 function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
+            # TODO: check
             if ϕa[m,k]>ϕbw[m,k]
                 qbw[m,k] = 0.0
             else
-                qbw[m,k] = ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.005 # TODO:
+                qbw[m,k] = (ϕbw[m,k]-ϕc2[m,k])/(Rb+Rs)
             end
         end
     end
@@ -273,6 +276,8 @@ function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
     for m in 1:mm
         i,j = dbhe_indexes(m)
         for k in 1:kkb
+            # TODO: check
+            
             # Approx. 1
             #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/delta
             #q2 = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/delta
@@ -338,6 +343,7 @@ end
 # Temperature at the annulus of the DBHEs. 1D model.
 ϕa2 = ones(mm,kkb).*ϕ0.(rzb)'
 ϕa1 = ones(mm,kkb).*ϕ0.(rzb)'
+ϕa2[1] = ϕa1[1] = 297.15
 # Temperature at the DBHE wall. 1D model.
 ϕbw = ones(mm,kkb).*ϕ0.(rzb)'
 # Heat flux at the DBHE wall. 1D model.
@@ -373,15 +379,32 @@ end
 save(path,"diff_coeff",D,rx,ry,rz,0)
 
 # Inlet water temperature. 10.1016/j.renene.2021.07.086.
-df = CSV.read("temp-vs-time.csv", DataFrame)
+df = CSV.read("inlet-temp-vs-time.csv", DataFrame)
 tin = (df."time (h)")*3600 # s
 ϕin = df."water_temp (°C)".+273.15 # K
-function ϕ_fluid_inlet(t,ϕin,tin)
+function get_ϕin(t;ϕin=ϕin,tin=tin)
     ind = maximum([findfirst(x->x>=t,tin)-1, 1])
     return ϕin[ind]
 end
 
-# Inlet water temperature. 10.1016/j.renene.2021.07.086.
+# Outlet water temperature. 10.1016/j.renene.2021.07.086.
+df = CSV.read("outlet-temp-vs-time.csv", DataFrame)
+tout = (df."time (h)")*3600 # s
+ϕout = df."water_temp (°C)".+273.15 # K
+function get_ϕout(t;ϕout=ϕout,tout=tout)
+    ind = maximum([findfirst(x->x>=t,tout)-1, 1])
+    return ϕout[ind]
+end
+
+# Heat extraction rate Q (W)
+Qs = (ϕout-ϕin)*(mfr*Cf)
+function get_Q(t;Qs=Qs,tin=tin)
+    ind = maximum([findfirst(x->x>=t,tin)-1, 1])
+    return Qs[ind]
+end
+
+# Predicted inlet and outlet water temperature. 
+ϕin_pred = zeros(mm,ceil(Int,tt/st)+1)
 ϕout_pred = zeros(mm,ceil(Int,tt/st)+1)
 
 # Saved temperatures
@@ -391,6 +414,21 @@ ts = collect(0:st*dt:tt*dt)
 
 # Run simulation
 for nt = 0:2:tt
+
+    # Save ϕ
+    if nt % st == 0
+        println("Iteration:$nt, time:$(round(nt*dt/60/60,digits=2))hs, " *
+                "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
+                "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
+        plot_ϕ(ϕa1,ϕc1,ϕbw,rzb,nt*dt)
+
+        ϕin_pred[:,(nt÷st)+1] = ϕa1[:,1]
+        ϕout_pred[:,(nt÷st)+1] = ϕc1[:,1]
+        #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
+        #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
+        #save(path,"dbhe_center_temp",ϕc2,rx,ry,rz,t)
+    end
+
     # Update ϕ
     update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
     update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
@@ -405,26 +443,18 @@ for nt = 0:2:tt
     update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ1,ϕ2
     update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # 3D: ϕ1,ϕ2
     
-    # Save ϕ
-    if nt % st == 0
-        println("Iteration:$nt, time:$(round(nt*dt/60/60,digits=2))hs, " *
-                "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
-                "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
-        plot_ϕ(ϕa1,ϕc1,ϕbw,rzb,nt*dt)
-        
-        ϕout_pred[:,(nt÷st)+1]=ϕc1[:,1]
-        #save(path,"ground_temp",ϕ2,rx,ry,rz,t)
-        #save(path,"dbhe_annulus_temp",ϕa2,rx,ry,rz,t)
-        #save(path,"dbhe_center_temp",ϕc2,rx,ry,rz,t)
-    end
 end
 
 
 # Validation ###################################################################
 
-plot(tin/3600, ϕin.-273.15,
-     label="Inlet temperature [°C]")
-plot!(ts/3600, ϕout_pred[1,:].-273.15,
+plot(ts/3600, get_ϕin.(ts).-273.15,
+      label="Inlet temperature [°C]")
+scatter!(ts/3600, ϕin_pred[1,:].-273.15,
+      label="Predicted inlet temperature [°C]")
+plot!(ts/3600, get_ϕout.(ts).-273.15,
+      label="Outlet temperature [°C]")
+scatter!(ts/3600, ϕout_pred[1,:].-273.15,
       label="Predicted outlet temperature [°C]")
 plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(5, 40))
 savefig("$path/inlet-oulet-temp.png")
