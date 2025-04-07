@@ -125,6 +125,8 @@ dci = dco-2*0.0114
 # Outer annulus pipe speciﬁcations x thickness (m): 0.1937 x 0.00833. 10.1016/j.renene.2021.07.086.
 dao = 0.1937
 dai = dao-2*0.00833
+# Borehole diameter (m). # TODO
+db = dao*1.2
 # Thermal conductivity of center pipe (W/m.K). 10.1016/j.renene.2021.07.086.
 kc = 0.4
 # Thermal conductivity of annulus pipe (W/m.K).  10.1016/j.renene.2021.07.086.
@@ -135,20 +137,20 @@ kf = 0.618
 kg = 1.5
 # Speciﬁc heat capacity of water (J/kg.K). 10.1016/j.renene.2021.07.086.
 Cf = 4174
-# Pipe specific heat capacity (J/(kg⋅K))
-Cp = 1735 # TODO:missing value
+# Pipe specific heat capacity (J/(kg⋅K)). 10.1016/j.enbuild.2018.12.006.
+Cp = 2100 
 # Grout specific heat capacity (J/(kg⋅K)). 10.1016/j.renene.2024.121963.
 Cg = 1735 
 # Ground surface temperature (K). 10.1016/j.renene.2021.07.086.
 ϕs = 283.15
 # Water density (kg/m³). 10.1016/j.renene.2024.121963.
 ρf = 998
-# Pipe density (kg/m³)
-ρp = 2190 # TODO:missing value
+# Pipe density (kg/m³). 10.1016/j.enbuild.2018.12.006.
+ρp = 930
 # Grout density (kg/m³). 10.1016/j.renene.2024.121963.
 ρg = 2190
-# Mass flow rate (kg/s). 10.1016/j.renene.2024.121963.
-mfr = 4.88
+# Mass flow rate (kg/s). 10.1016/j.renene.2021.01.036
+mfr = 11.65 # 42 m3/h
 # Thermal resistance between center and annulus pipe ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rac = 0.08
 # Thermal resistance between annulus and borehole wall ((K m)/W). 10.1016/j.energy.2019.05.228.
@@ -158,7 +160,7 @@ Rs = 0.01
 # Thermal capacity of circulating ﬂuid in the annulus, Ca. 10.1016/j.renene.2024.121963.
 Ca = (π/4)*(dai^2-dco^2)*ρf*Cf
     +(π/4)*(dao^2-dai^2)*ρp*Cp
-#    +(π/4)*(db^2-dao^2)*ρg*Cg
+    +(π/4)*(db^2-dao^2)*ρg*Cg
 # Thermal capacity of circulating ﬂuid in the center, Cc. 10.1016/j.renene.2024.121963.
 Cc = (π/4)*(dci^2*ρf*Cf)
     +(π/4)*(dco^2-dci^2)*ρp*Cp
@@ -208,7 +210,7 @@ dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dz^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
 #dt = 0.01
-dt=10
+dt = 10
 println("dt:$dt")
 
 # No. of time iterations
@@ -232,7 +234,8 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for m in 1:mm
-        ϕa2[m,1] = ϕ_fluid_inlet(dt*nt,ϕin,tin) #283.15 #ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. Alternative: use values from Fig 7.
+        ϕa2[m,1] = ϕ_fluid_inlet(dt*nt,ϕin,tin) # 10.1016/j.renene.2021.07.086.
+        #ϕa2[m,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
@@ -250,23 +253,41 @@ function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf
 end
 
 # Update heat flux at the wall of each DBHE, qbw. 1D model.
+# q = ϕa*ϕbw/(Rb+Rs)
+# q = -k * grad(ϕ)
 function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
-            qbw[m,k] = -ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.0008 # TODO:check
+            if ϕa[m,k]>ϕbw[m,k]
+                qbw[m,k] = 0.0
+            else
+                qbw[m,k] = ϕa[m,k]*ϕbw[m,k]/(Rb+Rs) * 0.005 # TODO:
+            end
         end
     end
 end
 
 # Update temperature at the borehole walls, ϕbw. 1D model.
-# q = ϕa*ϕbw/(Rb+Rs)
-# q = -k * grad(ϕ)
 function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
     delta = (dx+dy)/2
     for m in 1:mm
         i,j = dbhe_indexes(m)
         for k in 1:kkb
-            ϕbw[m,k] = -delta*qbw[m,k]/ka+ϕ[i,j,k]
+            # Approx. 1
+            #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/delta
+            #q2 = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/delta
+            #q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/delta
+            #q4 = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/delta
+            #qbw[m,k] = q1+q2+q3+q4 => ϕbw[m,k]
+            ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
+                       qbw[m,k]*delta/(4*ka)
+            
+            # Approx. 2
+            #ϕbw1 = qbw[m,k]*dx/ka+ϕ[i+1,j,k] # qbw[m,k] = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/dx
+            #ϕbw2 = qbw[m,k]*dy/ka+ϕ[i,j+1,k] # qbw[m,k] = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/dy
+            #ϕbw3 = qbw[m,k]*dx/ka+ϕ[i-1,j,k] # qbw[m,k] = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/dx
+            #ϕbw4 = qbw[m,k]*dy/ka+ϕ[i,j-1,k] # qbw[m,k] = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/dy
+            #ϕbw[m,k] = (ϕbw1+ϕbw2+ϕbw3+ϕbw4)/4
         end
     end
 end
@@ -278,7 +299,7 @@ function update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk)
             for i = 2:ii-1
                 if D[i,j,k] > 0  # Ground domain
                     # Diffusive term
-                    diff = (((D[i+1,j,k]+D[i,j,k])/2*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx 
+                    diff = (((D[i+1,j,k]+D[i,j,k])/2*(ϕ1[i+1,j,k]-ϕ1[i,j,k])/dx
                             -(D[i,j,k]+D[i-1,j,k])/2*(ϕ1[i,j,k]-ϕ1[i-1,j,k])/dx)/dx
                            +((D[i,j+1,k]+D[i,j,k])/2*(ϕ1[i,j+1,k]-ϕ1[i,j,k])/dy
                             -(D[i,j,k]+D[i,j-1,k])/2*(ϕ1[i,j,k]-ϕ1[i,j-1,k])/dy)/dy
@@ -403,7 +424,7 @@ end
 
 plot(tin/3600, ϕin.-273.15,
      label="Inlet temperature [°C]")
-plot!(ts[1:390]/3600, ϕout_pred[1,:][1:390].-273.15,
+plot!(ts/3600, ϕout_pred[1,:].-273.15,
       label="Predicted outlet temperature [°C]")
 plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(5, 40))
 savefig("$path/inlet-oulet-temp.png")
