@@ -132,7 +132,7 @@ db = dao*1.2
 kc = 0.4
 # Thermal conductivity of annulus pipe (W/m.K).  10.1016/j.renene.2021.07.086.
 ka = 41
-# Thermal conductivity of water (W/m.K)
+# Thermal conductivity of water (W/m.K).
 kf = 0.618
 # Thermal conductivity of grout (W/m.K). 10.1016/j.renene.2021.07.086.
 kg = 1.5
@@ -150,7 +150,7 @@ Cg = 1735
 ρp = 930
 # Grout density (kg/m³). 10.1016/j.renene.2024.121963.
 ρg = 2190
-# Mass flow rate (kg/s). 10.1016/j.renene.2021.01.036
+# Mass flow rate (kg/s). 10.1016/j.renene.2021.01.036.
 mfr = 11.65 # 42 m3/h
 # Thermal resistance between center and annulus pipe ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rac = 0.08
@@ -261,11 +261,7 @@ function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
             # TODO: check
-            if ϕa[m,k]>ϕbw[m,k]
-                qbw[m,k] = 0.0
-            else
-                qbw[m,k] = (ϕbw[m,k]-ϕc2[m,k])/(Rb+Rs)
-            end
+            qbw[m,k] = -(ϕbw[m,k]-ϕc2[m,k])/(Rb+Rs)*10
         end
     end
 end
@@ -284,8 +280,8 @@ function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
             #q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/delta
             #q4 = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/delta
             #qbw[m,k] = q1+q2+q3+q4 => ϕbw[m,k]
-            #ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
-            #           qbw[m,k]*delta/(4*ka)
+            ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
+                       qbw[m,k]*delta/(4*ka)
             
             # Approx. 2
             #ϕbw1 = qbw[m,k]*dx/ka+ϕ[i+1,j,k] # qbw[m,k] = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/dx
@@ -406,7 +402,7 @@ end
 ϕin_pred = zeros(mm,ceil(Int,tt/st)+1)
 ϕout_pred = zeros(mm,ceil(Int,tt/st)+1)
 
-# Saved temperatures
+# Saved times
 ts = collect(0:st*dt:tt*dt)
 
 # Simulation ##################################################################
@@ -462,7 +458,7 @@ savefig("$path/inlet-oulet-temp.png")
 # Ground temperature
 rzrev = reverse(-1*rz[1:end-1])
 @views ϕrev = reverse(ϕ1[ii÷2,:,:]'.-273.15, dims=1)
-heatmap(rx, rzrev, ϕrev, colorbar_title = "Temperature (°C)")
+heatmap(rx, rzrev, ϕrev, colorbar_title = "Temperature (°C)", colormap=:jet1)
 contour!(rx, rzrev, ϕrev, linewidth = 1, linecolor = :black)
 contour!(xlabel="Distance [m]", ylabel="Depth [m]")
 savefig("$path/ground-temp.png")

@@ -8,7 +8,7 @@ end
 function plot_ϕ(ϕa,ϕc,ϕbw,rzb,t)
     plot(rzb, ϕa[1,:].-273.15, label="Temperature at DBHE annulus fluid [°C].")
     plot!(rzb, ϕc[1,:].-273.15, label="Temperature at DBHE center fluid [°C].")
-    plot!(rzb, ϕbw[1,:].-273.15, label="Temperature at DBHE wall [°C].")
-    plot!(xlabel="depth [m]", ylabel="Temperature [°C]", ylims=(5, 80))
+    #plot!(rzb, ϕbw[1,:].-273.15, label="Temperature at DBHE wall [°C].")
+    plot!(xlabel="depth [m]", ylabel="Temperature [°C]", ylims=(5, 40))
     savefig("$path/temp-dbhe-$t.png")
 end
