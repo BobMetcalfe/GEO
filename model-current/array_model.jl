@@ -23,13 +23,24 @@ mkpath(path)
 #     1D element representation of the annulus fluid temperature, ϕa.
 #         Ca*dϕa/dt=(ϕc-ϕa)/Rac+(ϕbw-ϕa)/Rb-m*Cf*dϕa/dz
 #
-# Coupling with 3D model representing the ground
+#     Heat flux at the DBHE wall, qwb.
+#         qbw = (ϕbw-ϕa)/(Rb+Rs)
 #
-#     Heat flux at the DBHE wall, q.
-#         q = ϕa*ϕbw/(Rb+Rs)
+#     Boundaries and initial conditions
+#         ϕc(t=n+1,z=0) = ϕa(t=n,z=0)-Q/(m*Cf)
+#         ϕc(t,z=zf) = ϕa(t,z=zf)
+#         ϕc(t=0,z) = ϕ0(z)
+#         ϕa(t=0,z) = ϕ0(z)
+#         ϕ0(z) = ϕs+gg*z
 #
-#     Temperature at the DBHE wall, ϕbw. 
-#         ϕbw = computed by the 3D model, using q as input.
+#     Coupling with 3D model representing the ground
+#     Temperature at the DBHE wall, ϕbw.
+#         q1 = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/dx
+#         q2 = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/dy
+#         q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/dx
+#         q4 = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/dy
+#         qbw[m,k] = q1+q2+q3+q4
+#               => ϕbw[m,k]
 #
 # References:
 #    10.1016/j.renene.2024.121963
@@ -42,6 +53,13 @@ mkpath(path)
 # 
 # Equation for ground model
 #     ρ c ∂ϕ/∂t =  ∂(k ∂ϕ/∂x)/∂x + ∂(k ∂ϕ/∂y)/∂y + ∂(k ∂ϕ/∂z)/∂z
+#
+# Boundary conditions
+#   Neumann condition on box sides: ∇ϕ,n = 0
+#   DBHE walls (1D elements): ϕ(x=x_m,y=y_m,z) = ϕbw_m
+#
+# Initial conditions
+#  ϕ(x,y,z) = ϕ0(z)
 #
 ################################################################################
 
@@ -261,7 +279,7 @@ function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
             # TODO: check
-            qbw[m,k] = -(ϕbw[m,k]-ϕc2[m,k])/(Rb+Rs)*10
+            qbw[m,k] = (ϕa[m,k]-ϕbw[m,k])/(Rb+Rs)*20
         end
     end
 end
@@ -273,8 +291,6 @@ function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
         i,j = dbhe_indexes(m)
         for k in 1:kkb
             # TODO: check
-            
-            # Approx. 1
             #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/delta
             #q2 = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/delta
             #q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/delta
@@ -282,13 +298,6 @@ function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
             #qbw[m,k] = q1+q2+q3+q4 => ϕbw[m,k]
             ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
                        qbw[m,k]*delta/(4*ka)
-            
-            # Approx. 2
-            #ϕbw1 = qbw[m,k]*dx/ka+ϕ[i+1,j,k] # qbw[m,k] = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/dx
-            #ϕbw2 = qbw[m,k]*dy/ka+ϕ[i,j+1,k] # qbw[m,k] = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/dy
-            #ϕbw3 = qbw[m,k]*dx/ka+ϕ[i-1,j,k] # qbw[m,k] = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/dx
-            #ϕbw4 = qbw[m,k]*dy/ka+ϕ[i,j-1,k] # qbw[m,k] = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/dy
-            #ϕbw[m,k] = (ϕbw1+ϕbw2+ϕbw3+ϕbw4)/4
         end
     end
 end
