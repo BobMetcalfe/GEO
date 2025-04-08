@@ -18,13 +18,13 @@ mkpath(path)
 # Equations for each DBHE, b:
 # 
 #     1D element representation of the center fluid temperature, ϕb_c:
-#         Cc*dϕb_c(t,z)/dt = (ϕb_a(t,z)-ϕb_c(t,z))/Rac
-#                            +m*Cf*dϕb_c(t,z)/dz
+#         Cc*∂ϕb_c(t,z)/∂t = (ϕb_a(t,z)-ϕb_c(t,z))/Rac
+#                            +m*Cf*∂ϕb_c(t,z)/∂z
 #
 #     1D element representation of the annulus fluid temperature, ϕb_a:
-#         Ca*dϕb_a(t,z)/dt = (ϕb_c(t,z)-ϕb_a(t,z))/Rac
+#         Ca*∂ϕb_a(t,z)/∂t = (ϕb_c(t,z)-ϕb_a(t,z))/Rac
 #                           +(ϕb_w(t,z)-ϕb_a(t,z))/Rb
-#                           -m*Cf*dϕb_a(t,z)/dz
+#                           -m*Cf*∂ϕb_a(t,z)/∂z
 #
 #     Heat flux at the DBHE wall, qb_w:
 #         qb_w(t,z) = (ϕb_w(t,z)-ϕb_a(t,z))/(Rb+Rs)
@@ -129,7 +129,7 @@ function diff_coeff(z)
     end
 end
 
-# Earth surface temperature (K)
+# Ground surface temperature (K). 10.1016/j.renene.2021.07.086.
 ϕs = 283.15
 # Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228.
 gg = 2/100
@@ -162,8 +162,6 @@ Cf = 4174
 Cp = 2100 
 # Grout specific heat capacity (J/(kg⋅K)). 10.1016/j.renene.2024.121963.
 Cg = 1735 
-# Ground surface temperature (K). 10.1016/j.renene.2021.07.086.
-ϕs = 283.15
 # Water density (kg/m³). 10.1016/j.renene.2024.121963.
 ρf = 998
 # Pipe density (kg/m³). 10.1016/j.enbuild.2018.12.006.
@@ -191,17 +189,17 @@ Q = 300_000
 xs = [5]
 ys = [5]
 # Number of DBHEs
-mm = length(xs)
+bb = length(xs)
 # Get DBHE index
 function dbhe_index(x,y)
-    for (m,(xb,yb)) in enumerate(zip(xs,ys))
+    for (b,(xb,yb)) in enumerate(zip(xs,ys))
         r = norm([x,y]-[xb,yb]) # Distance to DBHE center
         if r<dao/2
-            return m
+            return b
         end
     end
 end
-function dbhe_indexes(m)
+function dbhe_indexes(b)
     return 5, 5 # TODO:
 end
 
@@ -230,7 +228,6 @@ rzb = 0:dz:zzb
 dtd = (1/(2*maximum([D1,D2,D3,D4]))*(1/dx^2+1/dy^2+1/dz^2)^-1)
 #dtc = minimum([dx/norm(vx0), dy/norm(vy0), dz/norm(vz0)]) # no convection
 #dt = minimum([dtd,dtc])
-#dt = 0.01
 dt = 10
 println("dt:$dt")
 
@@ -253,51 +250,51 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 # Update functions #############################################################
 
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
-function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
-    for m in 1:mm
-        #ϕa2[m,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
-        ϕa2[m,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
-        #ϕa2[m,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
+    for b in 1:bb
+        #ϕa2[b,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
+        ϕa2[b,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        #ϕa2[b,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
-            diff = (ϕc1[m,k]-ϕa1[m,k])/Rac+(ϕbw[m,k]-ϕa1[m,k])/Rb
-            conv = -mfr*Cf*(ϕa1[m,k]-ϕa1[m,k-1])/dz
-            ϕa2[m,k] = (diff+conv)*dt/Ca+ϕa1[m,k]
+            diff = (ϕc1[b,k]-ϕa1[b,k])/Rac+(ϕbw[b,k]-ϕa1[b,k])/Rb
+            conv = -mfr*Cf*(ϕa1[b,k]-ϕa1[b,k-1])/dz
+            ϕa2[b,k] = (diff+conv)*dt/Ca+ϕa1[b,k]
             # Fluid temperature in the center of the well
-            diff = (ϕa1[m,k]-ϕc1[m,k])/Rac
-            conv = +mfr*Cf*(ϕc1[m,k+1]-ϕc1[m,k])/dz
-            ϕc2[m,k] = (diff+conv)*dt/Cc+ϕc1[m,k]
+            diff = (ϕa1[b,k]-ϕc1[b,k])/Rac
+            conv = +mfr*Cf*(ϕc1[b,k+1]-ϕc1[b,k])/dz
+            ϕc2[b,k] = (diff+conv)*dt/Cc+ϕc1[b,k]
         end
-        ϕa2[m,kkb] = ϕa2[m,kkb-1]
-        ϕc2[m,kkb] = ϕa2[m,kkb]
-        ϕc2[m,1] = ϕc2[m,2]
+        ϕa2[b,kkb] = ϕa2[b,kkb-1]
+        ϕc2[b,kkb] = ϕa2[b,kkb]
+        ϕc2[b,1] = ϕc2[b,2]
     end
 end
 
 # Update heat flux at the wall of each DBHE, qbw. 1D model.
-function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
-    for m in 1:mm
+function update_q_dbhe_wall!(qbw,ϕa,ϕbw,bb,kkb,dz,dt,Rb,Rs)
+    for b in 1:bb
         for k in 1:kkb
             # TODO: check
-            qbw[m,k] = (ϕa[m,k]-ϕbw[m,k])/(Rb+Rs)*20
+            qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)*20
         end
     end
 end
 
 # Update temperature at the borehole walls, ϕbw. 1D model.
-function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,mm,kkb,dx,dy,dz,dt)
+function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,bb,kkb,dx,dy,dz,dt)
     delta = (dx+dy)/2
-    for m in 1:mm
-        i,j = dbhe_indexes(m)
+    for b in 1:bb
+        i,j = dbhe_indexes(b)
         for k in 1:kkb
             # TODO: check
-            #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/delta
-            #q2 = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/delta
-            #q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/delta
-            #q4 = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/delta
-            #qbw[m,k] = q1+q2+q3+q4 => ϕbw[m,k]
-            ϕbw[m,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
-                       qbw[m,k]*delta/(4*ka)
+            #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[b,k])/delta
+            #q2 = -ka*(ϕ[i,j+1,k]-ϕbw[b,k])/delta
+            #q3 = ka*(ϕbw[b,k]-ϕ[i-1,j,k])/delta
+            #q4 = ka*(ϕbw[b,k]-ϕ[i,j-1,k])/delta
+            #qbw[b,k] = q1+q2+q3+q4 => ϕbw[b,k]
+            ϕbw[b,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
+                       qbw[b,k]*delta/(4*ka)
         end
     end
 end
@@ -320,8 +317,8 @@ function update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk)
                     # Update temperature
                     ϕ2[i,j,k] = (diff+source)*dt+ϕ1[i,j,k]
                 else  # DBHE domain
-                    m = dbhe_index(i*dx,j*dy)
-                    ϕ2[i,j,k] = ϕbw[m,k]
+                    b = dbhe_index(i*dx,j*dy)
+                    ϕ2[i,j,k] = ϕbw[b,k]
                 end
             end
          end
@@ -343,16 +340,16 @@ end
 # Initial and boundary conditions ##############################################
 
 # Temperature at the center of the DBHEs. 1D model.
-ϕc2 = ones(mm,kkb).*ϕ0.(rzb)'
-ϕc1 = ones(mm,kkb).*ϕ0.(rzb)'
+ϕc2 = ones(bb,kkb).*ϕ0.(rzb)'
+ϕc1 = ones(bb,kkb).*ϕ0.(rzb)'
 # Temperature at the annulus of the DBHEs. 1D model.
-ϕa2 = ones(mm,kkb).*ϕ0.(rzb)'
-ϕa1 = ones(mm,kkb).*ϕ0.(rzb)'
+ϕa2 = ones(bb,kkb).*ϕ0.(rzb)'
+ϕa1 = ones(bb,kkb).*ϕ0.(rzb)'
 # Temperature at the DBHE wall. 1D model.
-ϕbw = ones(mm,kkb).*ϕ0.(rzb)'
+ϕbw = ones(bb,kkb).*ϕ0.(rzb)'
 # Heat flux at the DBHE wall. 1D model.
-qbw = zeros(mm,kkb)
-update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # qbw
+qbw = zeros(bb,kkb)
+update_q_dbhe_wall!(qbw,ϕa2,ϕbw,bb,kkb,dz,dt,Rb,Rs) # qbw
 
 # Ground temperature. 3D model.
 ϕ2 = zeros(ii,jj,kk)
@@ -408,8 +405,8 @@ function get_Q(t;Qs=Qs,tin=tin)
 end
 
 # Predicted inlet and outlet water temperature. 
-ϕin_pred = zeros(mm,ceil(Int,tt/st)+1)
-ϕout_pred = zeros(mm,ceil(Int,tt/st)+1)
+ϕin_pred = zeros(bb,ceil(Int,tt/st)+1)
+ϕout_pred = zeros(bb,ceil(Int,tt/st)+1)
 
 # Saved times
 ts = collect(0:st*dt:tt*dt)
@@ -434,16 +431,16 @@ for nt = 0:2:tt
     end
 
     # Update ϕ
-    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
-    update_q_dbhe_wall!(qbw,ϕa2,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
-    update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,mm,kkb,dx,dy,dz,dt) # 1D: ϕbw
+    update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa2,ϕa1,ϕc2,ϕc1
+    update_q_dbhe_wall!(qbw,ϕa2,ϕbw,bb,kkb,dz,dt,Rb,Rs) # 1D: qbw
+    update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,bb,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ2,ϕ1
     update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz) # 3D: ϕ2,ϕ1
     
     # Update ϕ
-    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
-    update_q_dbhe_wall!(qbw,ϕa1,ϕbw,mm,kkb,dz,dt,Rb,Rs) # 1D: qbw
-    update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,mm,kkb,dx,dy,dz,dt) # 1D: ϕbw
+    update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
+    update_q_dbhe_wall!(qbw,ϕa1,ϕbw,bb,kkb,dz,dt,Rb,Rs) # 1D: qbw
+    update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,bb,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ1,ϕ2
     update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # 3D: ϕ1,ϕ2
     
