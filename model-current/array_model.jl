@@ -17,24 +17,26 @@ mkpath(path)
 #
 # Equations for each DBHE, b:
 # 
-#     1D element representation of the center fluid temperature, ϕb_c.
+#     1D element representation of the center fluid temperature, ϕb_c:
 #         Cc*dϕb_c(t,z)/dt = (ϕb_a(t,z)-ϕb_c(t,z))/Rac
 #                            +m*Cf*dϕb_c(t,z)/dz
 #
-#     1D element representation of the annulus fluid temperature, ϕb_a.
+#     1D element representation of the annulus fluid temperature, ϕb_a:
 #         Ca*dϕb_a(t,z)/dt = (ϕb_c(t,z)-ϕb_a(t,z))/Rac
 #                           +(ϕb_w(t,z)-ϕb_a(t,z))/Rb
 #                           -m*Cf*dϕb_a(t,z)/dz
 #
-#     Heat flux at the DBHE wall, qb_w.
-#         qb_w = (ϕb_w-ϕb_a)/(Rb+Rs)
+#     Heat flux at the DBHE wall, qb_w:
+#         qb_w(t,z) = (ϕb_w(t,z)-ϕb_a(t,z))/(Rb+Rs)
 #
-#     Boundary and initial conditions
+#     Boundary and initial conditions:
 #         ϕb_c(t,z=0) = ϕb_a(t,z=0)-Q/(m*Cf)
-#         ϕb_c(t,z=zf) = ϕb_a(t,z=zf)
+#         ϕb_c(t,z=zb) = ϕb_a(t,z=zb)
 #         ϕb_c(t=0,z) = ϕ0(z)
 #         ϕb_a(t=0,z) = ϕ0(z)
 #         ϕb_0(z) = ϕs+gg*z
+#
+#         z range for borehole b: 1:zb
 #
 # References:
 #    10.1016/j.renene.2024.121963
@@ -45,21 +47,21 @@ mkpath(path)
 ################################################################################
 # DBHE array model #############################################################
 # 
-# Equation for ground model
-#     ρ(x,y,z) c(x,y,z) ∂ϕ(x,y,z)/∂t =   ∂(k(x,y,z) * ∂ϕ(x,y,z)/∂x)/∂x
-#                                      + ∂(k(x,y,z) * ∂ϕ(x,y,z)/∂y)/∂y
-#                                      + ∂(k(x,y,z) * ∂ϕ(x,y,z)/∂z)/∂z
+# Equation for ground model:
+#     ρ(x,y,z) c(x,y,z) ∂ϕ(t,x,y,z)/∂t =   ∂(k(x,y,z) * ∂ϕ(t,x,y,z)/∂x)/∂x
+#                                        + ∂(k(x,y,z) * ∂ϕ(t,x,y,z)/∂y)/∂y
+#                                        + ∂(k(x,y,z) * ∂ϕ(t,x,y,z)/∂z)/∂z
 #
-# Boundary conditions
-#   Neumann condition on box sides: ∇ϕ(x,y,z),n = 0
-#   DBHE walls (1D elements): ϕ(x=xb,y=yb,z=1:zb) = ϕb_w(z=1:zb)
+# Boundary conditions:
+#   Neumann condition at ground (box) sides: ∇ϕ(t,x,y,z),n = 0
+#   DBHE walls (1D elements): ϕ(t,x=xb,y=yb,z=1:zb) = ϕb_w(t,z=1:zb)
 #
-# Coupling of DBHE model (1D) with array model (3D)
+# Coupling of DBHE model (1D) with array model (3D):
 #     Temperature at the DBHE wall, ϕb_w, is computed using
 #     the heat flux at the DBHE wall, qb_w.
 #
-# Initial conditions
-#  ϕ(x,y,z) = ϕ0(z)
+# Initial conditions:
+#  ϕ(t=0,x,y,z) = ϕ0(z), (x,y,z) ∉ borehole positions.
 #
 ################################################################################
 
