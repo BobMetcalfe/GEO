@@ -15,32 +15,26 @@ mkpath(path)
 #
 # DBHE type: coaxial
 #
-# Equations for each DBHE:
+# Equations for each DBHE, b:
 # 
-#     1D element representation of the center fluid temperature, ϕc.
-#         Cc*dϕc/dt=(ϕa-ϕc)/Rac+m*Cf*dϕc/dz
+#     1D element representation of the center fluid temperature, ϕb_c.
+#         Cc*dϕb_c(t,z)/dt = (ϕb_a(t,z)-ϕb_c(t,z))/Rac
+#                            +m*Cf*dϕb_c(t,z)/dz
 #
-#     1D element representation of the annulus fluid temperature, ϕa.
-#         Ca*dϕa/dt=(ϕc-ϕa)/Rac+(ϕbw-ϕa)/Rb-m*Cf*dϕa/dz
+#     1D element representation of the annulus fluid temperature, ϕb_a.
+#         Ca*dϕb_a(t,z)/dt = (ϕb_c(t,z)-ϕb_a(t,z))/Rac
+#                           +(ϕb_w(t,z)-ϕb_a(t,z))/Rb
+#                           -m*Cf*dϕb_a(t,z)/dz
 #
-#     Heat flux at the DBHE wall, qwb.
-#         qbw = (ϕbw-ϕa)/(Rb+Rs)
+#     Heat flux at the DBHE wall, qb_w.
+#         qb_w = (ϕb_w-ϕb_a)/(Rb+Rs)
 #
-#     Boundaries and initial conditions
-#         ϕc(t=n+1,z=0) = ϕa(t=n,z=0)-Q/(m*Cf)
-#         ϕc(t,z=zf) = ϕa(t,z=zf)
-#         ϕc(t=0,z) = ϕ0(z)
-#         ϕa(t=0,z) = ϕ0(z)
-#         ϕ0(z) = ϕs+gg*z
-#
-#     Coupling with 3D model representing the ground
-#     Temperature at the DBHE wall, ϕbw.
-#         q1 = -ka*(ϕ[i+1,j,k]-ϕbw[m,k])/dx
-#         q2 = -ka*(ϕ[i,j+1,k]-ϕbw[m,k])/dy
-#         q3 = ka*(ϕbw[m,k]-ϕ[i-1,j,k])/dx
-#         q4 = ka*(ϕbw[m,k]-ϕ[i,j-1,k])/dy
-#         qbw[m,k] = q1+q2+q3+q4
-#               => ϕbw[m,k]
+#     Boundary and initial conditions
+#         ϕb_c(t,z=0) = ϕb_a(t,z=0)-Q/(m*Cf)
+#         ϕb_c(t,z=zf) = ϕb_a(t,z=zf)
+#         ϕb_c(t=0,z) = ϕ0(z)
+#         ϕb_a(t=0,z) = ϕ0(z)
+#         ϕb_0(z) = ϕs+gg*z
 #
 # References:
 #    10.1016/j.renene.2024.121963
@@ -52,11 +46,17 @@ mkpath(path)
 # DBHE array model #############################################################
 # 
 # Equation for ground model
-#     ρ c ∂ϕ/∂t =  ∂(k ∂ϕ/∂x)/∂x + ∂(k ∂ϕ/∂y)/∂y + ∂(k ∂ϕ/∂z)/∂z
+#     ρ(x,y,z) c(x,y,z) ∂ϕ(x,y,z)/∂t =   ∂(k(x,y,z) * ∂ϕ(x,y,z)/∂x)/∂x
+#                                      + ∂(k(x,y,z) * ∂ϕ(x,y,z)/∂y)/∂y
+#                                      + ∂(k(x,y,z) * ∂ϕ(x,y,z)/∂z)/∂z
 #
 # Boundary conditions
-#   Neumann condition on box sides: ∇ϕ,n = 0
-#   DBHE walls (1D elements): ϕ(x=x_m,y=y_m,z) = ϕbw_m
+#   Neumann condition on box sides: ∇ϕ(x,y,z),n = 0
+#   DBHE walls (1D elements): ϕ(x=xb,y=yb,z=1:zb) = ϕb_w(z=1:zb)
+#
+# Coupling of DBHE model (1D) with array model (3D)
+#     Temperature at the DBHE wall, ϕb_w, is computed using
+#     the heat flux at the DBHE wall, qb_w.
 #
 # Initial conditions
 #  ϕ(x,y,z) = ϕ0(z)
@@ -273,8 +273,6 @@ function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,mm,kkb,dz,dt,nt,Rac,Rb,mfr,Cf
 end
 
 # Update heat flux at the wall of each DBHE, qbw. 1D model.
-# q = ϕa*ϕbw/(Rb+Rs)
-# q = -k * grad(ϕ)
 function update_q_dbhe_wall!(qbw,ϕa,ϕbw,mm,kkb,dz,dt,Rb,Rs)
     for m in 1:mm
         for k in 1:kkb
