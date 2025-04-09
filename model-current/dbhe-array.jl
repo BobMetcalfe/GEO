@@ -481,8 +481,8 @@ savefig("$path/inlet-oulet-temp.png")
 # Ground temperature
 rzrev = reverse(-1*rz[1:end-1])
 @views ϕrev = reverse(ϕ1[ii÷2,:,:]'.-273.15, dims=1)
-heatmap(rx[1:end-1], rzrev, ϕrev, colorbar_title = "Temperature (°C)", colormap=:jet1)
-contour!(rx[1:end-1], rzrev, ϕrev, linewidth = 1, linecolor = :black)
+heatmap(rx, rzrev, ϕrev, colorbar_title = "Temperature (°C)", colormap=:jet1)
+contour!(rx, rzrev, ϕrev, linewidth = 1, linecolor = :black)
 contour!(xlabel="Distance [m]", ylabel="Depth [m]")
 savefig("$path/ground-temp.png")
 
