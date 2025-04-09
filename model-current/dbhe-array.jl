@@ -147,14 +147,14 @@ gg = 2/100
 
 # Borehole depth (m). 10.1016/j.renene.2021.07.086.
 dbhe_depth = 2000
-# Inner center pipe speciﬁcations x thickness (m): 0.125 x 0.0114. 10.1016/j.renene.2021.07.086.
-dco = 0.125
-dci = dco-2*0.0114
-# Outer annulus pipe speciﬁcations x thickness (m): 0.1937 x 0.00833. 10.1016/j.renene.2021.07.086.
-dao = 0.1937
-dai = dao-2*0.00833
-# Borehole diameter (m). # TODO
-db = dao*1.2
+# Borehole diameter (m). 10.1016/j.enbuild.2018.02.013
+db = 0.28
+# Inner center pipe diameters (m). # 10.1016/j.enbuild.2018.02.013
+dco = 0.14 
+dci = 0.124
+# Outer annulus pipe  diameters (m). 10.1016/j.enbuild.2018.02.013
+dao = 0.2 
+dai = 0.188
 # Thermal conductivity of center pipe (W/m.K). 10.1016/j.renene.2021.07.086.
 kc = 0.4
 # Thermal conductivity of annulus pipe (W/m.K).  10.1016/j.renene.2021.07.086.
