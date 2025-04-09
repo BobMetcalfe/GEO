@@ -222,8 +222,8 @@ zz = dl1+dl2+dl3+dl4+30
 zzb = dbhe_depth
 
 # dx, dy, dz (m)
-dx = dao
-dy = dao
+dx = db
+dy = db
 dz = 40
 rx = 0:dx:xx
 ry = 0:dy:yy
