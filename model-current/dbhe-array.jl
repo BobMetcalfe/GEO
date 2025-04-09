@@ -170,8 +170,8 @@ Cg = 1735
 ρp = 930
 # Grout density (kg/m³). 10.1016/j.renene.2024.121963.
 ρg = 2190
-# Mass flow rate (kg/s). 10.1016/j.renene.2021.01.036.
-mfr = 11.65 # 42 m3/h
+# Mass flow rate (kg/s). 10.1016/j.enbuild.2018.02.013
+mfr = 11.65
 # Thermal resistance between center and annulus pipe ((K m)/W). 10.1016/j.energy.2019.05.228.
 Rac = 0.08
 # Thermal resistance between annulus and borehole wall ((K m)/W). 10.1016/j.energy.2019.05.228.
@@ -365,11 +365,13 @@ for k in 1:kk
             D[i,j,k] = diff_coeff(zk)
             ϕ2[i,j,k] = ϕ0(zk)
             # DBHE
-            for (xb,yb) in zip(xs,ys)
-                r = norm([xi,yj]-[xb,yb]) # Distance to DBHE center
-                if r<=dao/2 && zk<=dbhe_depth
-                    D[i,j,k] = 0
-                    ϕ2[i,j,k] = ϕ0(zk)
+            if zk<=dbhe_depth
+                for (xb,yb) in zip(xs,ys)
+                    r = norm([xi,yj]-[xb,yb]) # Distance to DBHE center
+                    if r<=dao/2
+                        D[i,j,k] = 0
+                        ϕ2[i,j,k] = ϕ0(zk)
+                    end
                 end
             end
         end
