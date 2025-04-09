@@ -27,7 +27,7 @@ mkpath(path)
 #                           -m*Cf*∂ϕb_a(t,z)/∂z
 #
 #     Heat flux at the DBHE wall, qb_w:
-#         qb_w(t,z) = (ϕb_w(t,z)-ϕb_a(t,z))/(Rb+Rs)
+#         qb_w(t,z) = (ϕb_a(t,z)-ϕb_w(t,z))/(Rb+Rs)
 #
 #     Boundary and initial conditions:
 #         ϕb_c(t,z=0) = ϕb_a(t,z=0)-Q/(m*Cf)
@@ -43,6 +43,7 @@ mkpath(path)
 #    10.1016/j.renene.2021.07.086
 #    10.1016/j.energy.2019.05.228
 #    10.1016/j.renene.2021.01.036
+#    10.1016/j.enbuild.2018.02.013
 #
 ################################################################################
 # DBHE array model #############################################################
@@ -53,7 +54,7 @@ mkpath(path)
 #                                        + ∂(k(x,y,z) * ∂ϕ(t,x,y,z)/∂z)/∂z
 #
 # Boundary conditions:
-#   Ground upper surface: ϕ(t,x,y,z=0) = ϕ0(z=0)
+#   Ground upper surface: ks*∂ϕ(t,x,y,z)/∂z = hs*(ϕ-ϕs)
 #   Ground lower surface: ϕ(t,x,y,z=zz) = ϕ0(z=zz)
 #   Ground lateral sides: ∇ϕ(t,x,y,z),n = 0
 #   DBHE walls (1D elements): ϕ(t,x=xb,y=yb,z=1:zb) = ϕb_w(t,z=1:zb)
@@ -133,6 +134,10 @@ end
 
 # Ground surface temperature (K). 10.1016/j.renene.2021.07.086.
 ϕs = 283.15
+# Convective heat transfer coeﬃcient on ground surface (W/(m^22 K)). 10.1016/j.enbuild.2018.02.013
+hs = 15
+# Thermal conductivity of subsurface (W/(m K)). 10.1016/j.enbuild.2018.02.013.
+ks = 2.5
 # Geothermal gradient (K/m). 10.1016/j.energy.2019.05.228.
 gg = 2/100
 # Ground temperature as a function of depth (K). 10.1016/j.renene.2021.07.086.
@@ -254,8 +259,8 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for b in 1:bb
         #ϕa2[b,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
-        #ϕa2[b,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
-        ϕa2[b,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        ϕa2[b,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        #ϕa2[b,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[b,k]-ϕa1[b,k])/Rac+(ϕbw[b,k]-ϕa1[b,k])/Rb
@@ -277,7 +282,12 @@ function update_q_dbhe_wall!(qbw,ϕa,ϕbw,bb,kkb,dz,dt,Rb,Rs)
     for b in 1:bb
         for k in 1:kkb
             # TODO: check
-            qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)*20
+            if dz*k < 30 # Depth of insulated section of borehole. 10.1016/j.enbuild.2018.02.013
+                qbw[b,k] = 0
+            else
+                qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)*20
+            end
+            #qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)*20
         end
     end
 end
@@ -327,11 +337,17 @@ function update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk)
 end
 
 # Update temperature in ground walls. 3D model.
-function update_ϕ_ground_bound!(ϕ,ii,jj,kk,dx,dy,dz)
+function update_ϕ_ground_bound!(ϕ,ii,jj,kk,dx,dy,dz,hs,ks,ϕs)
     ϕ[1,2:jj-1,2:kk-1] .= ϕ[2,2:jj-1,2:kk-1]
     ϕ[ii,2:jj-1,2:kk-1] .= ϕ[ii-1,2:jj-1,2:kk-1]
     ϕ[2:ii-1,1,2:kk-1] .= ϕ[2:ii-1,2,2:kk-1]
     ϕ[2:ii-1,jj,2:kk-1] .= ϕ[2:ii-1,jj-1,2:kk-1]
+    for j = 2:jj-1
+        for i = 2:ii-1
+            #10.1016/j.enbuild.2018.02.013
+            ϕ[i,j,1] = (ϕ[i,j,2]*ks/dz-ϕs*hs)/(ks/dz-hs)
+        end
+    end
     nothing
 end
 
@@ -436,14 +452,14 @@ for nt = 0:2:tt
     update_q_dbhe_wall!(qbw,ϕa2,ϕbw,bb,kkb,dz,dt,Rb,Rs) # 1D: qbw
     update_ϕ_dbhe_wall!(ϕbw,ϕ2,qbw,ka,bb,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ2,ϕ1,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ2,ϕ1
-    update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz) # 3D: ϕ2,ϕ1
+    update_ϕ_ground_bound!(ϕ2,ii,jj,kk,dx,dy,dz,hs,ks,ϕs) # 3D: ϕ2,ϕ1
     
     # Update ϕ
     update_ϕ_fluid!(ϕa1,ϕa2,ϕc1,ϕc2,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q) # 1D: ϕa1,ϕa2,ϕc1,ϕc2
     update_q_dbhe_wall!(qbw,ϕa1,ϕbw,bb,kkb,dz,dt,Rb,Rs) # 1D: qbw
     update_ϕ_dbhe_wall!(ϕbw,ϕ1,qbw,ka,bb,kkb,dx,dy,dz,dt) # 1D: ϕbw
     update_ϕ_ground!(ϕ1,ϕ2,ϕbw,D,dx,dy,dz,dt,ii,jj,kk) # 3D: ϕ1,ϕ2
-    update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz) # 3D: ϕ1,ϕ2
+    update_ϕ_ground_bound!(ϕ1,ii,jj,kk,dx,dy,dz,hs,ks,ϕs) # 3D: ϕ1,ϕ2
     
 end
 
