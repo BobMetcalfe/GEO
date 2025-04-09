@@ -34,7 +34,7 @@ mkpath(path)
 #         ϕb_c(t,z=zb) = ϕb_a(t,z=zb)
 #         ϕb_c(t=0,z) = ϕ0(z)
 #         ϕb_a(t=0,z) = ϕ0(z)
-#         ϕb_0(z) = ϕs+gg*z
+#         ϕ0(z) = ϕs+gg*z
 #
 #         z range for borehole b: 1:zb
 #
@@ -53,7 +53,9 @@ mkpath(path)
 #                                        + ∂(k(x,y,z) * ∂ϕ(t,x,y,z)/∂z)/∂z
 #
 # Boundary conditions:
-#   Neumann condition at ground (box) sides: ∇ϕ(t,x,y,z),n = 0
+#   Ground upper surface: ϕ(t,x,y,z=0) = ϕ0(z=0)
+#   Ground lower surface: ϕ(t,x,y,z=zz) = ϕ0(z=zz)
+#   Ground lateral sides: ∇ϕ(t,x,y,z),n = 0
 #   DBHE walls (1D elements): ϕ(t,x=xb,y=yb,z=1:zb) = ϕb_w(t,z=1:zb)
 #
 # Coupling of DBHE model (1D) with array model (3D):
@@ -206,7 +208,6 @@ end
 # Numerical parameters #########################################################
 
 # Maximum simulation time (s)
-#sim_time = 2400 # 40 minutes
 sim_time = 3_960_000 # 1100 hours
 
 # Geometry distances (m)
@@ -253,8 +254,8 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for b in 1:bb
         #ϕa2[b,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
-        ϕa2[b,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
-        #ϕa2[b,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        #ϕa2[b,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        ϕa2[b,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[b,k]-ϕa1[b,k])/Rac+(ϕbw[b,k]-ϕa1[b,k])/Rb
@@ -331,8 +332,6 @@ function update_ϕ_ground_bound!(ϕ,ii,jj,kk,dx,dy,dz)
     ϕ[ii,2:jj-1,2:kk-1] .= ϕ[ii-1,2:jj-1,2:kk-1]
     ϕ[2:ii-1,1,2:kk-1] .= ϕ[2:ii-1,2,2:kk-1]
     ϕ[2:ii-1,jj,2:kk-1] .= ϕ[2:ii-1,jj-1,2:kk-1]
-    ϕ[2:ii-1,2:jj-1,1] .= ϕ[2:ii-1,2:jj-1,2]
-    ϕ[2:ii-1,2:jj-1,kk] .= ϕ0(kk*dz)
     nothing
 end
 
@@ -447,7 +446,7 @@ for nt = 0:2:tt
 end
 
 
-# Validation ###################################################################
+# Plots and validation #########################################################
 
 # Predicted Iinlet and outlet temperature vs measurements
 plot(ts/3600, get_ϕin.(ts).-273.15,
