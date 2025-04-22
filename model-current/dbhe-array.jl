@@ -259,8 +259,8 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
     for b in 1:bb
         #ϕa2[b,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
-        ϕa2[b,1] = ϕc1[1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
-        #ϕa2[b,1] = ϕc1[1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        ϕa2[b,1] = ϕc1[b,1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        #ϕa2[b,1] = ϕc1[b,1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
             diff = (ϕc1[b,k]-ϕa1[b,k])/Rac+(ϕbw[b,k]-ϕa1[b,k])/Rb
@@ -285,9 +285,9 @@ function update_q_dbhe_wall!(qbw,ϕa,ϕbw,bb,kkb,dz,dt,Rb,Rs)
             if dz*k < 30 # Depth of insulated section of borehole. 10.1016/j.enbuild.2018.02.013
                 qbw[b,k] = 0
             else
-                qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)*20
+                qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)
             end
-            #qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)*20
+            #qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)
         end
     end
 end
@@ -415,7 +415,7 @@ function get_ϕout(t;ϕout=ϕout,tout=tout)
 end
 
 # Heat extraction rate Q (W)
-Qs = (ϕout-ϕin)*(mfr*Cf)
+Qs = (get_ϕout.(tin)-get_ϕin.(tin))*(mfr*Cf)
 function get_Q(t;Qs=Qs,tin=tin)
     ind = maximum([findfirst(x->x>=t,tin)-1, 1])
     return Qs[ind]
@@ -428,7 +428,7 @@ end
 # Saved times
 ts = collect(0:st*dt:tt*dt)
 
-# Simulation ##################################################################
+# Simulation ###################################################################
 
 # Run simulation
 for nt = 0:2:tt
