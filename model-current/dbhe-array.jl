@@ -191,7 +191,7 @@ Ca = (π/4)*(dai^2-dco^2)*ρf*Cf
 Cc = (π/4)*(dci^2*ρf*Cf)
     +(π/4)*(dco^2-dci^2)*ρp*Cp
 # Heat extraction rate Q (W)
-Q = 300_000
+Q = 200_000
 # DBHE positions
 xs = [5]
 ys = [5]
@@ -209,6 +209,9 @@ end
 function dbhe_indexes(b)
     return 5, 5 # TODO:
 end
+
+#A1 = π * ((dai/2)^2 - (dco/2)^2) # cross sectional area of annular space
+#A2 = π * (dci/2)^2 # cross sectional area of center space
 
 # Numerical parameters #########################################################
 
@@ -242,7 +245,7 @@ tt = round(Int,sim_time/dt)
 println("tt:$tt")
 
 # Save step
-st = 1000
+st = 10_000
 
 # No. of spatial domain nodes
 ii = round(Int,xx/dx)
@@ -256,18 +259,22 @@ println("ii:$ii, jj:$jj, kk:$kk. nn:$nn.")
 # Update functions #############################################################
 
 # Update temperature at the center and annulus of each DBHE, ϕc and ϕa. 1D model.
-function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr,Cf,Ca,Cc,Q)
+function update_ϕ_fluid!(ϕa2,ϕa1,ϕc2,ϕc1,ϕbw,bb,kkb,dz,dt,nt,Rac,Rb,mfr0,Cf,Ca,Cc,Q0)
+    mfr = mfr0 # get_mfr(dt*nt)
+    Q = Q0 # get_Q(dt*nt)
     for b in 1:bb
         #ϕa2[b,1] = get_ϕin(dt*nt) # 10.1016/j.renene.2021.07.086.
-        ϕa2[b,1] = ϕc1[b,1]-get_Q(dt*nt)/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
-        #ϕa2[b,1] = ϕc1[b,1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086. 
+        ϕa2[b,1] = ϕc1[b,1]-Q/(mfr*Cf) # 10.1016/j.renene.2021.07.086.
         for k in 2:kkb-1
             # Fluid temperature in the annulus of the well
-            diff = (ϕc1[b,k]-ϕa1[b,k])/Rac+(ϕbw[b,k]-ϕa1[b,k])/Rb
+            diff = (ϕc1[b,k]-ϕa1[b,k])/Rac+
+                   (ϕbw[b,k]-ϕa1[b,k])/Rb
+                   #A1*kf*(ϕa1[b,k+1]-2*ϕa1[b,k]+ϕa1[b,k-1])/dz^2
             conv = -mfr*Cf*(ϕa1[b,k]-ϕa1[b,k-1])/dz
             ϕa2[b,k] = (diff+conv)*dt/Ca+ϕa1[b,k]
             # Fluid temperature in the center of the well
             diff = (ϕa1[b,k]-ϕc1[b,k])/Rac
+                    #A2*kf*(ϕc1[b,k+1]-2*ϕc1[b,k]+ϕc1[b,k-1])/dz^2
             conv = +mfr*Cf*(ϕc1[b,k+1]-ϕc1[b,k])/dz
             ϕc2[b,k] = (diff+conv)*dt/Cc+ϕc1[b,k]
         end
@@ -287,25 +294,25 @@ function update_q_dbhe_wall!(qbw,ϕa,ϕbw,bb,kkb,dz,dt,Rb,Rs)
             else
                 qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)
             end
-            #qbw[b,k] = (ϕa[b,k]-ϕbw[b,k])/(Rb+Rs)
         end
     end
 end
 
 # Update temperature at the borehole walls, ϕbw. 1D model.
 function update_ϕ_dbhe_wall!(ϕbw,ϕ,qbw,ka,bb,kkb,dx,dy,dz,dt)
-    delta = (dx+dy)/2
+    l = 2*π*dao #2(dx+dy)
     for b in 1:bb
         i,j = dbhe_indexes(b)
         for k in 1:kkb
             # TODO: check
-            #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[b,k])/delta
-            #q2 = -ka*(ϕ[i,j+1,k]-ϕbw[b,k])/delta
-            #q3 = ka*(ϕbw[b,k]-ϕ[i-1,j,k])/delta
-            #q4 = ka*(ϕbw[b,k]-ϕ[i,j-1,k])/delta
-            #qbw[b,k] = q1+q2+q3+q4 => ϕbw[b,k]
-            ϕbw[b,k] = (ϕ[i+1,j,k]+ϕ[i,j+1,k]+ϕ[i-1,j,k]+ϕ[i,j-1,k])/4+
-                       qbw[b,k]*delta/(4*ka)
+            #q1 = -ka*(ϕ[i+1,j,k]-ϕbw[b,k])/dx
+            #q2 = ka*(ϕbw[b,k]-ϕ[i-1,j,k])/dx
+            #q3 = -ka*(ϕ[i,j+1,k]-ϕbw[b,k])/dy
+            #q4 = ka*(ϕbw[b,k]-ϕ[i,j-1,k])/dy
+            #l*qbw[b,k] = q1*dx+q2*dx+q3*dy+q4*dy => ϕbw[b,k]
+            ϕbw[b,k] = (ka*dy/dx*(ϕ[i+1,j,k]+ϕ[i-1,j,k])+
+                        ka*dx/dy*(ϕ[i,j+1,k]+ϕ[i,j-1,k])+
+                        l*qbw[b,k])/(2ka*dy/dx+2ka*dx/dy)
         end
     end
 end
@@ -414,11 +421,24 @@ function get_ϕout(t;ϕout=ϕout,tout=tout)
     return ϕout[ind]
 end
 
+dtt = tout[2]-tout[1]
+tin = [[dtt*(i-1) for i in 1:0]; tin.+100*dtt]
+tout = [[dtt*(i-1) for i in 1:0]; tout.+100*dtt]
+ϕin = [[ϕin[1] for _ in 1:0]; ϕin]
+ϕout = [[ϕout[1] for _ in 1:0]; ϕout]
+
 # Heat extraction rate Q (W)
 Qs = (get_ϕout.(tin)-get_ϕin.(tin))*(mfr*Cf)
 function get_Q(t;Qs=Qs,tin=tin)
     ind = maximum([findfirst(x->x>=t,tin)-1, 1])
     return Qs[ind]
+end
+
+# Mass flow rate
+mfrs = Q/((get_ϕout.(tin)-get_ϕin.(tin))*Cf)
+function get_mfr(t;mfrs=mfrs,tin=tin)
+    ind = maximum([findfirst(x->x>=t,tin)-1, 1])
+    return mfrs[ind]
 end
 
 # Predicted inlet and outlet water temperature. 
@@ -439,6 +459,7 @@ for nt = 0:2:tt
                 "inlet temp:$(round(ϕa1[1,1].-273.15,digits=4))°C, " *
                 "outlet temp:$(round(ϕc1[1,1].-273.15,digits=4))°C")
         plot_ϕ(ϕa1,ϕc1,ϕbw,rzb,nt*dt)
+        plot_ϕ_ground(rx,ϕ1,nt*dt)
 
         ϕin_pred[:,(nt÷st)+1] = ϕa1[:,1]
         ϕout_pred[:,(nt÷st)+1] = ϕc1[:,1]
@@ -466,23 +487,5 @@ end
 
 # Plots and validation #########################################################
 
-# Predicted Iinlet and outlet temperature vs measurements
-plot(ts/3600, get_ϕin.(ts).-273.15,
-      label="Inlet temperature [°C]")
-scatter!(ts/3600, ϕin_pred[1,:].-273.15,
-      label="Predicted inlet temperature [°C]")
-plot!(ts/3600, get_ϕout.(ts).-273.15,
-      label="Outlet temperature [°C]")
-scatter!(ts/3600, ϕout_pred[1,:].-273.15,
-      label="Predicted outlet temperature [°C]")
-plot!(xlabel="time [h]", ylabel="Temperature [°C]", ylims=(5, 40))
-savefig("$path/inlet-oulet-temp.png")
-
-# Ground temperature
-rzrev = reverse(-1*rz[1:end-1])
-@views ϕrev = reverse(ϕ1[ii÷2,:,:]'.-273.15, dims=1)
-heatmap(rx, rzrev, ϕrev, colorbar_title = "Temperature (°C)", colormap=:jet1)
-contour!(rx, rzrev, ϕrev, linewidth = 1, linecolor = :black)
-contour!(xlabel="Distance [m]", ylabel="Depth [m]")
-savefig("$path/ground-temp.png")
+plot_ϕ_inlet_outlet(ts,ϕin_pred,ϕout_pred)
 
