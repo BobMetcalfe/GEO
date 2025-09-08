@@ -1,3 +1,5 @@
 Manifest.toml
 ./results/*
 ./array_results/*
+./results_gpu/*
+*.vti
